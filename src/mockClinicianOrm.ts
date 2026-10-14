@@ -1,5 +1,6 @@
 import { Clinician } from "./starter-code/clinician";
 import { Patient } from "./starter-code/patient";
+import { seededRoster } from "./mockSlotOrm";
 import { clinician as seedClinician } from "./starter-code/mock-clinician";
 
 export type ClinicianQuery = Pick<Patient, "state" | "insurance"> & Pick<Clinician, "clinicianType">;
@@ -25,4 +26,4 @@ export function createMockClinicianRepository(rows: readonly Clinician[]): Clini
   };
 }
 
-export const clinicianRepository: ClinicianRepository = createMockClinicianRepository([seedClinician]);
+export const clinicianRepository: ClinicianRepository = createMockClinicianRepository([seedClinician, ...seededRoster.clinicians]);

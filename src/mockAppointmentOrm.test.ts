@@ -8,6 +8,7 @@ import { SEED_CLINICIAN_ID } from "./mockSlotOrm";
 import { Appointment } from "./starter-code/appointment";
 import { Clinician } from "./starter-code/clinician";
 import { clinician as seedClinician } from "./starter-code/mock-clinician";
+import { withSeedEnv } from "./withSeedEnv";
 
 function makeAppointment(overrides: Partial<Appointment> & Pick<Appointment, "id" | "clinicianId">): Appointment {
   return {
@@ -27,22 +28,13 @@ function seededRowsWith(
   seed: string,
   read: (fresh: typeof import("./mockAppointmentOrm"), freshClinician: Clinician) => Appointment[],
 ) {
-  const previous = process.env.SEED_APPOINTMENTS;
-  process.env.SEED_APPOINTMENTS = seed;
-  let rows: Appointment[] = [];
-  try {
-    jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports -- a fresh module instance is the point
-      const fresh = require("./mockAppointmentOrm") as typeof import("./mockAppointmentOrm");
-      // eslint-disable-next-line @typescript-eslint/no-require-imports -- the clinician must embed this instance's rows
-      const { clinician } = require("./starter-code/mock-clinician") as typeof import("./starter-code/mock-clinician");
-      rows = read(fresh, clinician);
-    });
-  } finally {
-    if (previous === undefined) delete process.env.SEED_APPOINTMENTS;
-    else process.env.SEED_APPOINTMENTS = previous;
-  }
-  return rows;
+  return withSeedEnv({ SEED_APPOINTMENTS: seed }, () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- a fresh module instance is the point
+    const fresh = require("./mockAppointmentOrm") as typeof import("./mockAppointmentOrm");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- the clinician must embed this instance's rows
+    const { clinician } = require("./starter-code/mock-clinician") as typeof import("./starter-code/mock-clinician");
+    return read(fresh, clinician);
+  });
 }
 
 const BUSY_IDS = [

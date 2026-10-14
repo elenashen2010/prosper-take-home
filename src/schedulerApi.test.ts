@@ -8,6 +8,7 @@ import { Clinician } from "./starter-code/clinician";
 import { clinician } from "./starter-code/mock-clinician";
 import { patient } from "./starter-code/mock-patient";
 import { MOCK_SLOT_DATA, MOCK_SLOT_DATA_SMALL } from "./starter-code/mock-slot-data";
+import { withSeedEnv } from "./withSeedEnv";
 
 function makeClinician(overrides: Partial<Clinician> & Pick<Clinician, "id">): Clinician {
   return {
@@ -105,22 +106,11 @@ const pairsWith = (isos: readonly string[], appointments: readonly Appointment[]
 const pairsForSlots = (isos: readonly string[]) => pairsWith(isos, []);
 
 function seededPairsWith(env: Readonly<Record<string, string>>): string[][][] {
-  const previous = Object.fromEntries(Object.keys(env).map((name) => [name, process.env[name]]));
-  Object.assign(process.env, env);
-  let pairs: string[][][] = [];
-  try {
-    jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports -- a fresh module instance is the point
-      const fresh = require("./schedulerApi") as typeof import("./schedulerApi");
-      pairs = fresh.findAvailableSlots(patient).map(pairsOf);
-    });
-  } finally {
-    for (const [name, value] of Object.entries(previous)) {
-      if (value === undefined) delete process.env[name];
-      else process.env[name] = value;
-    }
-  }
-  return pairs;
+  return withSeedEnv(env, () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- a fresh module instance is the point
+    const fresh = require("./schedulerApi") as typeof import("./schedulerApi");
+    return fresh.findAvailableSlots(patient).map(pairsOf);
+  });
 }
 
 describe("findAvailableSlots", () => {

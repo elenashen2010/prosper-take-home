@@ -1,6 +1,8 @@
 import { LocalDay, localDayOf, parseTimeZone } from "./localDay";
+import { EMPTY_SET, SeedTables, tablesOf } from "./roster";
 import { AvailableAppointmentSlot } from "./starter-code/appointment";
 import { Clinician } from "./starter-code/clinician";
+import { ROSTER } from "./starter-code/mock-roster";
 import { MOCK_SLOT_DATA, MOCK_SLOT_DATA_SMALL } from "./starter-code/mock-slot-data";
 
 export type ClinicianZone = Pick<Clinician, "id" | "timezone">;
@@ -91,14 +93,36 @@ export function seedSlotSetFromEnv(value = process.env.SEED_SLOTS): SeedSlotSet 
 
 export const seedSlotSet: SeedSlotSet = seedSlotSetFromEnv();
 
+export const SeedClinicianSets = { doe: EMPTY_SET, roster: ROSTER } as const;
+export type SeedClinicianSet = keyof typeof SeedClinicianSets;
+
+/**
+ * Who sits beside Dr. Doe: SEED_CLINICIANS=doe (default, nobody) or roster (src/starter-code/mock-roster.ts, its
+ * clinicians with their slots and appointments, and its patients). Dr. Doe's rows still follow SEED_SLOTS and
+ * SEED_APPOINTMENTS.
+ */
+export function seedClinicianSetFromEnv(value = process.env.SEED_CLINICIANS): SeedClinicianSet {
+  return seedSetFromEnv("SEED_CLINICIANS", SeedClinicianSets, "doe", value);
+}
+
+export const seedClinicianSet: SeedClinicianSet = seedClinicianSetFromEnv();
+
+export const seededRoster: SeedTables = tablesOf(SeedClinicianSets[seedClinicianSet], {
+  slot: (index) => `roster-slot-${index}`,
+  appointment: (index) => `roster-appointment-${index}`,
+});
+
 export const slotRepository: SlotRepository = createMockSlotRepository(
-  SeedSlotSets[seedSlotSet].map((slot, index) => ({
-    id: `mock-slot-${index}`,
-    clinicianId: SEED_CLINICIAN_ID,
-    date: new Date(slot.date),
-    length: slot.length,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  })),
-  [{ id: SEED_CLINICIAN_ID, timezone: SEED_CLINICIAN_TIMEZONE }],
+  [
+    ...SeedSlotSets[seedSlotSet].map((slot, index) => ({
+      id: `mock-slot-${index}`,
+      clinicianId: SEED_CLINICIAN_ID,
+      date: new Date(slot.date),
+      length: slot.length,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })),
+    ...seededRoster.slots,
+  ],
+  [{ id: SEED_CLINICIAN_ID, timezone: SEED_CLINICIAN_TIMEZONE }, ...seededRoster.clinicians],
 );

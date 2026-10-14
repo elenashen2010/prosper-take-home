@@ -1,5 +1,5 @@
 import { Appointment, AppointmentStatus, AppointmentType } from "./starter-code/appointment";
-import { SEED_CLINICIAN_ID, seedSetFromEnv } from "./mockSlotOrm";
+import { SEED_CLINICIAN_ID, seededRoster, seedSetFromEnv } from "./mockSlotOrm";
 
 export interface AppointmentRepository {
   /**
@@ -57,8 +57,8 @@ export function seedAppointmentSetFromEnv(value = process.env.SEED_APPOINTMENTS)
 
 export const seedAppointmentSet: SeedAppointmentSet = seedAppointmentSetFromEnv();
 
-export const appointmentRepository: AppointmentRepository = createMockAppointmentRepository(
-  SeedAppointmentSets[seedAppointmentSet].map((row, index) => ({
+export const appointmentRepository: AppointmentRepository = createMockAppointmentRepository([
+  ...SeedAppointmentSets[seedAppointmentSet].map((row, index) => ({
     id: `mock-appointment-${index}`,
     patientId: row.patientId,
     clinicianId: SEED_CLINICIAN_ID,
@@ -68,4 +68,5 @@ export const appointmentRepository: AppointmentRepository = createMockAppointmen
     createdAt: new Date(),
     updatedAt: new Date(),
   })),
-);
+  ...seededRoster.appointments,
+]);

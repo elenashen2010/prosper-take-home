@@ -1,8 +1,17 @@
 import { LocalDay, localDayOf, parseTimeZone } from "./localDay";
-import { ClinicianZone, createMockSlotRepository, SEED_CLINICIAN_ID, seedSlotSet, seedSlotSetFromEnv, slotRepository } from "./mockSlotOrm";
+import {
+  ClinicianZone,
+  createMockSlotRepository,
+  SEED_CLINICIAN_ID,
+  seedClinicianSetFromEnv,
+  seedSlotSet,
+  seedSlotSetFromEnv,
+  slotRepository,
+} from "./mockSlotOrm";
 import { AvailableAppointmentSlot } from "./starter-code/appointment";
 import { clinician as seedClinician } from "./starter-code/mock-clinician";
 import { MOCK_SLOT_DATA, MOCK_SLOT_DATA_SMALL } from "./starter-code/mock-slot-data";
+import { withSeedEnv } from "./withSeedEnv";
 
 function makeSlot(
   overrides: Partial<AvailableAppointmentSlot> & Pick<AvailableAppointmentSlot, "clinicianId" | "date">,
@@ -28,19 +37,8 @@ const idsOf = (rows: AvailableAppointmentSlot[]) => rows.map((s) => s.id);
 const day = (ymd: string): LocalDay => localDayOf(new Date(`${ymd}T12:00:00.000Z`), NEW_YORK);
 
 function seededRowsWith(seed: string, read: (fresh: typeof import("./mockSlotOrm")) => AvailableAppointmentSlot[]) {
-  const previous = process.env.SEED_SLOTS;
-  process.env.SEED_SLOTS = seed;
-  let rows: AvailableAppointmentSlot[] = [];
-  try {
-    jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports -- a fresh module instance is the point
-      rows = read(require("./mockSlotOrm") as typeof import("./mockSlotOrm"));
-    });
-  } finally {
-    if (previous === undefined) delete process.env.SEED_SLOTS;
-    else process.env.SEED_SLOTS = previous;
-  }
-  return rows;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- a fresh module instance is the point
+  return withSeedEnv({ SEED_SLOTS: seed }, () => read(require("./mockSlotOrm") as typeof import("./mockSlotOrm")));
 }
 
 describe("seedSlotSetFromEnv", () => {
@@ -70,6 +68,21 @@ describe("seedSlotSetFromEnv", () => {
     const rows = seededRowsWith("midnight", (fresh) => fresh.slotRepository.findByClinician(SEED_CLINICIAN_ID));
     expect(rows).toHaveLength(6);
     expect(rows[0].date.toISOString()).toBe("2024-08-20T03:00:00.000Z");
+  });
+});
+
+describe("seedClinicianSetFromEnv", () => {
+  it("defaults to Dr. Doe alone when SEED_CLINICIANS is unset or empty", () => {
+    expect(seedClinicianSetFromEnv(undefined)).toBe("doe");
+    expect(seedClinicianSetFromEnv("")).toBe("doe");
+  });
+
+  it("selects the roster for SEED_CLINICIANS=roster", () => {
+    expect(seedClinicianSetFromEnv("roster")).toBe("roster");
+  });
+
+  it("rejects an unknown value", () => {
+    expect(() => seedClinicianSetFromEnv("bogus")).toThrow('SEED_CLINICIANS must be one of doe, roster, got "bogus"');
   });
 });
 
