@@ -60,16 +60,16 @@ Preconditions:
 
 ## Gotchas
 
-- As of 2026-10-14 (after README Task 1 landed) every journey here passes on both seeds:
-  the small seed gives exactly the README's 11 options in README order, the full seed
-  gives 37,165 options, and pairs.js reports 0 invalid on both.
+- As of 2026-10-14 (after README Tasks 1 and 2 landed) every journey here passes on both
+  seeds: the small seed gives exactly the README's 11 options in README order, the full
+  seed gives 9,999 options, and pairs.js reports 0 invalid on both.
 - The output is an array of clinician groups, so `count` is the number of clinicians with
   options, not the number of options. Read `pairs.json` for the option count. pairs.js
   reads the grouped shape (and the older tuple and flat shapes); any other return shape
   makes it exit 2, so update pairs.js in the same change.
 - Only psychologists appear. A therapist in the patient's state with their insurance is
   excluded by `clinicianType`, not by slot length.
-- The full-seed eligible drive writes about 22 MB of `output.json` and runs in about two
+- The full-seed eligible drive writes about 6 MB of `output.json` and runs in about two
   seconds. pairs.js prints only the first 20 invalid pairs and stores at most 1000 in
   `pairs.json` for runs over 200 options.
 - The miss journeys would pass against an empty result too. Run `assess-eligible` first

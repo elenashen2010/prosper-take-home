@@ -5,7 +5,7 @@ import { AvailableAppointmentSlot } from "./starter-code/appointment";
 import { Clinician } from "./starter-code/clinician";
 import { clinician } from "./starter-code/mock-clinician";
 import { patient } from "./starter-code/mock-patient";
-import { MOCK_SLOT_DATA_SMALL } from "./starter-code/mock-slot-data";
+import { MOCK_SLOT_DATA, MOCK_SLOT_DATA_SMALL } from "./starter-code/mock-slot-data";
 
 function makeClinician(overrides: Partial<Clinician> & Pick<Clinician, "id">): Clinician {
   return {
@@ -187,5 +187,30 @@ describe("findAvailableSlots", () => {
     expect(groups.map((g) => g.clinician.id)).toEqual(["psychA", "psychB"]);
     expect(calls).toEqual({ psychA: 1, psychB: 1 });
     expect(dayQueries).toBe(0);
+  });
+
+  it("hides the README ladder's inner starts before pairing", () => {
+    const ladder = ["12:00", "12:15", "12:30", "12:45", "13:00", "13:15", "13:30"].map(
+      (t) => `2024-08-19T${t}:00.000Z`,
+    );
+    expect(pairsForSlots([...ladder, "2024-08-21T12:00:00.000Z"])).toEqual([
+      [
+        ["2024-08-19T12:00:00.000Z", "2024-08-21T12:00:00.000Z"],
+        ["2024-08-19T13:30:00.000Z", "2024-08-21T12:00:00.000Z"],
+      ],
+    ]);
+  });
+
+  it("offers 9999 options from the full dump", () => {
+    const groups = findAvailableSlots(patient, repositories([clinician], rowsFrom(MOCK_SLOT_DATA, clinician.id)));
+    expect(groups).toHaveLength(1);
+    expect(groups[0].options).toHaveLength(9999);
+    const offered = new Set(
+      groups[0].options.flatMap((o) => [o.first.date.toISOString(), o.second.date.toISOString()]),
+    );
+    expect(offered.has("2024-09-03T21:00:00.000Z")).toBe(true);
+    expect(offered.has("2024-09-03T22:30:00.000Z")).toBe(true);
+    expect(offered.has("2024-09-03T21:15:00.000Z")).toBe(false);
+    expect(offered.has("2024-09-03T22:15:00.000Z")).toBe(false);
   });
 });

@@ -106,6 +106,18 @@ even-length list of slots taken two at a time. Exit 0 when all pairs are valid, 
 violates, 2 when the output is none of those shapes. It writes `pairs.json` next to the
 output as evidence.
 
+```
+node .agents/skills/verify-scheduler/scripts/optimized.js .verify-evidence/<run-id>/<feature>/<label>
+```
+
+Checks README Task 2 over a drive's evidence. For each clinician group it loads the
+unfiltered slots through the real slot repository (using the seed recorded in
+`summary.json`), re-derives per UTC day which starts keep the day's maximum number of
+bookable sessions with its own implementation of the rule, and compares that to the
+starts the drive offered. Days the scheduler offered nothing for are reported as
+unoffered and do not fail. Exit 0 when every offered day matches, 1 when any has an extra
+or missing start, 2 when the output is not clinician groups. Writes `optimized.json`.
+
 Feature recipes live in [features/README.md](features/README.md). Drive the feature's
 listed entry points, not just the convenient one.
 
@@ -123,9 +135,9 @@ drive writes:
 
 Keep the doctor report next to it: `doctor.js --out .verify-evidence/<run-id>/doctor.json`.
 
-Size: a full-seed eligible drive writes about 22 MB of `output.json` (37,165 options for
-one psychologist with the 7-day rule applied). That shrinks once README Task 2 hides
-overlapping slots; do not trim the output to save space.
+Size: a full-seed eligible drive writes about 6 MB of `output.json` (9,999 options for
+one psychologist with the 7-day rule and Task 2 optimization applied). Do not trim the
+output to save space.
 
 Proof standards for this app:
 
@@ -164,7 +176,8 @@ Git Bash, and POSIX shells alike. Paths are relative to the repo root.
 | doctor | `node .agents/skills/verify-scheduler/scripts/doctor.js [--out <file>]` | Read-only readiness check |
 | drive | `node .agents/skills/verify-scheduler/scripts/drive.js --feature <id> --run <id> [--seed small\|full] [...]` | Run the scheduler for a patient on one seed set, write evidence, assert expectations |
 | cleanup | `node .agents/skills/verify-scheduler/scripts/cleanup.js --run <id> [--remove-dist]` | Confirm evidence survived; remove `dist/` on request |
-| pairs | `node .agents/skills/verify-scheduler/scripts/pairs.js <evidence-dir> [--max-gap-days 7]` | Check each consecutive pair in a drive's output against the pairing rule |
+| pairs | `node .agents/skills/verify-scheduler/scripts/pairs.js <evidence-dir> [--max-gap-days 7]` | Check every option in a drive's output against the pairing rule |
+| optimized | `node .agents/skills/verify-scheduler/scripts/optimized.js <evidence-dir>` | Check every offered day against the Task 2 rule with an independent implementation |
 
 `.claude/skills/verify-scheduler` is a directory junction to `.agents/skills/verify-scheduler`
 (the other skills in this repo are symlinks; creating a symlink needs admin rights on this
@@ -185,10 +198,10 @@ node .agents/skills/verify-scheduler/scripts/cleanup.js --run $RUN
 In PowerShell, set the run id with `$RUN = Get-Date -Format yyyyMMdd-HHmmss`; the `node`
 commands are then identical.
 
-Proven 2026-10-14 on this checkout after README Task 1 landed. Small seed: doctor READY
-with two seed warnings, `assess-eligible` exit 0 with one group of 11 options in README
-order, pairs.js exit 0, both miss drives exit 0. Full seed: `assess-eligible` exit 0 with
-one group of 37,165 options in 22 MB, pairs.js exit 0. Earlier the same day, before
-Task 1, pairs.js reported 9-day pairs on both seeds, and `opt-keep-first` and `opt-ladder`
-still fail because README Task 2 is not implemented. Cleanup kept every evidence file in
-every run. First proven 2026-10-13 against the starter stub (count 0).
+Proven 2026-10-14 on this checkout after README Tasks 1 and 2 landed. Small seed: doctor
+READY with two seed warnings, `assess-eligible` exit 0 with one group of 11 options in
+README order, pairs.js exit 0, both miss drives exit 0, `opt-short-block` and
+`opt-independent` exit 0, optimized.js 4 of 4 days ok. Full seed: `assess-eligible` and
+`opt-ladder` exit 0 with one group of 9,999 options in 6 MB, pairs.js exit 0,
+optimized.js 27 of 27 days ok. Cleanup kept every evidence file in every run. First
+proven 2026-10-13 against the starter stub (count 0).

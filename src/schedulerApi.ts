@@ -3,10 +3,13 @@ import { Clinician } from "./starter-code/clinician";
 import { Patient } from "./starter-code/patient";
 import { ClinicianRepository, clinicianRepository } from "./mockClinicianOrm";
 import { SlotRepository, slotRepository } from "./mockSlotOrm";
+import { filterForMaxAppointments } from "./maxAppointments";
 import { daysBetween, UtcDay, utcDayOf } from "./utcDay";
 
 /** The two sessions of an assessment start on different UTC days at most this many days apart. */
 export const MAX_ASSESSMENT_DAY_GAP = 7;
+
+const ASSESSMENT_SESSION_MINUTES = 90;
 
 /** Two sessions with one psychologist, `first` on an earlier UTC day than `second`, 1 to MAX_ASSESSMENT_DAY_GAP days apart. */
 export interface AssessmentOption {
@@ -30,6 +33,7 @@ const seededRepositories: SchedulerRepositories = { clinicians: clinicianReposit
 /**
  * Assessment options the patient can book, grouped by clinician (README Task 1).
  * Eligible clinicians operate in the patient's state, accept the patient's insurance, and are psychologists.
+ * Each day offers only starts that keep that day's maximum number of sessions bookable (README Task 2).
  * Clinicians with no valid pair are omitted. One slot query per eligible psychologist.
  */
 export function findAvailableSlots(
@@ -46,7 +50,7 @@ export function findAvailableSlots(
 }
 
 function pairAssessmentSlots(slots: readonly AvailableAppointmentSlot[]): AssessmentOption[] {
-  const days = slotsByUtcDay(slots);
+  const days = keepMaxBookableSlotsPerDay(slotsByUtcDay(slots));
   const options: AssessmentOption[] = [];
   const dayEntries = [...days.entries()];
   dayEntries.forEach(([day, firsts], i) => {
@@ -70,4 +74,13 @@ function slotsByUtcDay(slots: readonly AvailableAppointmentSlot[]): Map<UtcDay, 
     else buckets.set(day, [slot]);
   }
   return buckets;
+}
+
+function keepMaxBookableSlotsPerDay(days: Map<UtcDay, AvailableAppointmentSlot[]>): Map<UtcDay, AvailableAppointmentSlot[]> {
+  const optimized = new Map<UtcDay, AvailableAppointmentSlot[]>();
+  for (const [day, slots] of days) {
+    const kept = new Set(filterForMaxAppointments(slots.map((s) => s.date), ASSESSMENT_SESSION_MINUTES).map((d) => d.getTime()));
+    optimized.set(day, slots.filter((s) => kept.has(s.date.getTime())));
+  }
+  return optimized;
 }

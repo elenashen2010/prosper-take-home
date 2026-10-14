@@ -62,8 +62,8 @@ and `Gotchas`.
 - [Assessment slots](./assessment-slots.md) covers eligibility by state and insurance,
   grouping by clinician, and the two-session pairing rule (README Task 1).
 - [Slot optimization](./slot-optimization.md) covers hiding overlapping slots that would
-  reduce the number of bookable appointments in a day (README Task 2). Not implemented;
-  the ladder journey needs `--seed full`.
+  reduce the number of bookable appointments in a day (README Task 2). The ladder journey
+  needs `--seed full`; `scripts/optimized.js` checks every offered day.
 - [Clinician capacity](./clinician-capacity.md) covers daily and weekly maximums and
   existing appointments (README Task 3). Blocked on seed data today.
 - [Therapy intake](./therapy-intake.md) covers 60-minute intake slots with therapists
