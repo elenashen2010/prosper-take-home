@@ -77,4 +77,15 @@ function toPlain(value, ancestors = []) {
   return value;
 }
 
-module.exports = { findRepoRoot, parseArgs, defaultRunId, evidenceRoot, registerTsNode, toPlain };
+function localDayByOffset(iso, zone) {
+  const instant = new Date(iso);
+  const offset = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longOffset" })
+    .formatToParts(instant)
+    .find((p) => p.type === "timeZoneName").value;
+  const m = /^GMT(?:([+-])(\d{2}):(\d{2}))?$/.exec(offset);
+  if (!m) throw new Error(`unexpected offset ${offset} for ${zone}`);
+  const minutes = m[1] ? (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) : 0;
+  return new Date(instant.getTime() + minutes * 60000).toISOString().slice(0, 10);
+}
+
+module.exports = { findRepoRoot, parseArgs, defaultRunId, evidenceRoot, registerTsNode, toPlain, localDayByOffset };

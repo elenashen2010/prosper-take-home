@@ -1,3 +1,4 @@
+import { parseTimeZone } from "./localDay";
 import { clinicianRepository, createMockClinicianRepository } from "./mockClinicianOrm";
 import { Clinician } from "./starter-code/clinician";
 import { clinician as seedClinician } from "./starter-code/mock-clinician";
@@ -12,6 +13,7 @@ function makeClinician(overrides: Partial<Clinician> & Pick<Clinician, "id">): C
     states: [],
     insurances: [],
     clinicianType: "THERAPIST",
+    timezone: parseTimeZone("America/New_York"),
     appointments: [],
     availableSlots: [],
     maxDailyAppointments: 2,
@@ -33,6 +35,11 @@ describe("clinicianRepository", () => {
     const found = clinicianRepository.findByTypeStateAndInsurance({ ...patient, clinicianType: "PSYCHOLOGIST" });
     expect(idsOf(found)).toEqual(["9c516382-c5b2-4677-a7ac-4e100fa35bdd"]);
     expect(found[0]).toBe(seedClinician);
+  });
+
+  it("carries the seed clinician's parsed time zone", () => {
+    const [found] = clinicianRepository.findByTypeStateAndInsurance({ ...patient, clinicianType: "PSYCHOLOGIST" });
+    expect(found.timezone).toBe("America/New_York");
   });
 
   it("returns nothing when the type does not match", () => {
@@ -119,6 +126,8 @@ describe("createMockClinicianRepository", () => {
       clinicianRepository.findByTypeStateAndInsurance({ clinicianType: "NURSE", state: "NY", insurance: "AETNA" });
       // @ts-expect-error the clinician type is required
       clinicianRepository.findByTypeStateAndInsurance({ state: "NY", insurance: "AETNA" });
+      // @ts-expect-error a plain string is not a TimeZone
+      makeClinician({ id: "unparsed", timezone: "America/New_York" });
     };
     expect(typeof typeChecksOnly).toBe("function");
   });

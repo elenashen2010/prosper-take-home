@@ -12,15 +12,20 @@ Read this index before driving, then use the matching feature file as the recipe
   cleanup, so evidence lands under `.verify-evidence/<id>/`.
 - Seed data is fixed and in-memory: patient Byrne Hollander (`NY`, `AETNA`); one
   psychologist, Dr. Jane Doe (`9c516382-c5b2-4677-a7ac-4e100fa35bdd`, `NY`/`CA`,
-  `AETNA`/`CIGNA`, max 2/day, 8/week, no appointments). Her slots come from one of two
-  sets, picked by `--seed` on drive.js and doctor.js (`SEED_SLOTS` for `npm run dev`):
-  - `small` (default): six ninety-minute UTC slots on four days, `2024-08-19T12:00`,
-    `12:15`, `2024-08-21T12:00`, `15:00`, `2024-08-22T15:00`, `2024-08-28T12:15`.
+  `AETNA`/`CIGNA`, time zone `America/New_York`, max 2/day, 8/week, no appointments). Her
+  slots come from one of three sets, picked by `--seed` on drive.js and doctor.js
+  (`SEED_SLOTS` for `npm run dev`):
+  - `small` (default): six ninety-minute slots on four days, `2024-08-19T12:00Z`,
+    `12:15Z`, `2024-08-21T12:00Z`, `15:00Z`, `2024-08-22T15:00Z`, `2024-08-28T12:15Z`.
   - `full`: the 458-row dump, 27 days from 2024-08-19 to 2024-09-26, 15-minute ladders.
-  No 60-minute slots in either set.
-- A verification run covers both seeds. Run every recipe with the default seed and again
-  with `--seed full`, using a distinct `--label` per seed, unless the feature file marks a
-  step as seed-independent or names the one seed it needs.
+  - `midnight`: six ninety-minute slots around New York midnight, `2024-08-20T03:00Z`,
+    `03:15Z`, `13:00Z`, `2024-08-21T02:30Z`, `2024-08-27T12:00Z`, `2024-08-28T03:30Z`.
+    Four UTC days, three New York days.
+  No 60-minute slots in any set.
+- A verification run covers the small and full seeds. Run every recipe with the default
+  seed and again with `--seed full`, using a distinct `--label` per seed, unless the
+  feature file marks a step as seed-independent or names the one seed it needs. The
+  `midnight` seed runs only where a feature file names it.
 - Never drive anything but this repo's `findAvailableSlots`; there is no shared instance.
 
 ## Driving conventions
@@ -29,10 +34,11 @@ Read this index before driving, then use the matching feature file as the recipe
 - The patient defaults to the seed patient; change only the fields the recipe names.
 - Treat every command as literal. Keep ISO timestamps exactly as written (UTC, milliseconds).
 - The scheduler returns one group per eligible psychologist, each with `clinician`
-  (`id`, `firstName`, `lastName`) and `options` as `{ first, second }` slot pairs. So
-  `summary.json`'s `count` is the number of clinicians with options, `slotDatesFound` is
-  twice the number of options, and `byClinician` counts option slots per clinician.
-  `scripts/pairs.js` checks the pairing rule over that output.
+  (`id`, `firstName`, `lastName`, `timezone`) and `options` as `{ first, second }` slot
+  pairs. So `summary.json`'s `count` is the number of clinicians with options,
+  `slotDatesFound` is twice the number of options, and `byClinician` counts option slots
+  per clinician. `scripts/pairs.js` checks the pairing rule over that output, judging each
+  slot's day in the group's `timezone`; a group without one is exit 2.
 - Run the eligible-patient journey before any miss journey, so a "returns nothing"
   expectation is read next to a known non-empty result.
 - Inspect `output.json` when a recipe asks for a by-hand check; `summary.json` is

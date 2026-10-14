@@ -1,49 +1,75 @@
+import { LocalDay, localDayOf, parseTimeZone } from "./localDay";
 import { AvailableAppointmentSlot } from "./starter-code/appointment";
+import { Clinician } from "./starter-code/clinician";
 import { MOCK_SLOT_DATA, MOCK_SLOT_DATA_SMALL } from "./starter-code/mock-slot-data";
-import { UtcDay, utcDayOf } from "./utcDay";
+
+export type ClinicianZone = Pick<Clinician, "id" | "timezone">;
 
 export interface SlotRepository {
   /**
-   * SELECT * FROM "AvailableSlot"
-   * WHERE "clinicianId" = $clinicianId
-   *   [AND (date AT TIME ZONE 'UTC')::date = ANY($days)]
+   * SELECT s.* FROM "AvailableSlot" s
+   * [JOIN "Clinician" c ON c.id = s."clinicianId"]
+   * WHERE s."clinicianId" = $clinicianId
+   *   [AND ((s.date AT TIME ZONE 'UTC') AT TIME ZONE c.timezone)::date = ANY($days)]
    *
-   * Rows in table order. Returns [] for an unknown clinician. The optional `days` clause keeps only rows
-   * that start on one of those UTC days; an empty list matches nothing. Returned rows are the table's own
-   * objects, not copies.
+   * Rows in table order. Returns [] for an unknown clinician. The optional clause keeps rows that start on one of
+   * `days` of the clinician's own calendar; an empty list matches nothing. Returned rows are the table's own
+   * objects, not copies. The double AT TIME ZONE is deliberate: Prisma `DateTime` is a Postgres `timestamp(3)`
+   * without time zone holding UTC.
    */
-  findByClinician(
-    clinicianId: AvailableAppointmentSlot["clinicianId"],
-    days?: readonly UtcDay[],
-  ): AvailableAppointmentSlot[];
+  findByClinician(clinicianId: AvailableAppointmentSlot["clinicianId"], days?: readonly LocalDay[]): AvailableAppointmentSlot[];
   /**
-   * SELECT DISTINCT (date AT TIME ZONE 'UTC')::date AS day FROM "AvailableSlot"
-   * WHERE "clinicianId" = $clinicianId ORDER BY day
+   * SELECT DISTINCT ((s.date AT TIME ZONE 'UTC') AT TIME ZONE c.timezone)::date AS day
+   * FROM "AvailableSlot" s JOIN "Clinician" c ON c.id = s."clinicianId"
+   * WHERE s."clinicianId" = $clinicianId ORDER BY day
    *
-   * A slot counts on the day it starts (see utcDayOf). Returns [] for an unknown clinician, a fresh array each call.
+   * A slot counts on the local day it starts. Returns [] for an unknown clinician, a fresh array each call.
    */
-  findSlotDaysByClinician(clinicianId: AvailableAppointmentSlot["clinicianId"]): UtcDay[];
+  findSlotDaysByClinician(clinicianId: AvailableAppointmentSlot["clinicianId"]): LocalDay[];
 }
 
-export function createMockSlotRepository(rows: readonly AvailableAppointmentSlot[]): SlotRepository {
+export function createMockSlotRepository(
+  rows: readonly AvailableAppointmentSlot[],
+  clinicians: readonly ClinicianZone[],
+): SlotRepository {
   const table: readonly AvailableAppointmentSlot[] = [...rows];
-  const findByClinician = (clinicianId: string, days?: readonly UtcDay[]) => {
-    const wanted = days && new Set(days);
-    return table.filter((s) => s.clinicianId === clinicianId && (!wanted || wanted.has(utcDayOf(s.date))));
-  };
+  const zones = new Map(clinicians.map((c) => [c.id, c.timezone]));
+  const rowsOf = (clinicianId: string) => table.filter((s) => s.clinicianId === clinicianId);
   return {
-    findByClinician,
-    findSlotDaysByClinician: (clinicianId) =>
-      [...new Set(findByClinician(clinicianId).map((s) => utcDayOf(s.date)))].sort(),
+    findByClinician: (clinicianId, days) => {
+      if (!days) return rowsOf(clinicianId);
+      const zone = zones.get(clinicianId);
+      if (zone === undefined) return [];
+      const wanted = new Set(days);
+      return rowsOf(clinicianId).filter((s) => wanted.has(localDayOf(s.date, zone)));
+    },
+    findSlotDaysByClinician: (clinicianId) => {
+      const zone = zones.get(clinicianId);
+      if (zone === undefined) return [];
+      return [...new Set(rowsOf(clinicianId).map((s) => localDayOf(s.date, zone)))].sort();
+    },
   };
 }
 
 export const SEED_CLINICIAN_ID = "9c516382-c5b2-4677-a7ac-4e100fa35bdd";
+export const SEED_CLINICIAN_TIMEZONE = parseTimeZone("America/New_York");
 
-export const SeedSlotSets = { small: MOCK_SLOT_DATA_SMALL, full: MOCK_SLOT_DATA } as const;
+export const MOCK_SLOT_DATA_MIDNIGHT: readonly { length: number; date: string }[] = [
+  { length: 90, date: "2024-08-20T03:00:00.000Z" },
+  { length: 90, date: "2024-08-20T03:15:00.000Z" },
+  { length: 90, date: "2024-08-20T13:00:00.000Z" },
+  { length: 90, date: "2024-08-21T02:30:00.000Z" },
+  { length: 90, date: "2024-08-27T12:00:00.000Z" },
+  { length: 90, date: "2024-08-28T03:30:00.000Z" },
+];
+
+export const SeedSlotSets = { small: MOCK_SLOT_DATA_SMALL, full: MOCK_SLOT_DATA, midnight: MOCK_SLOT_DATA_MIDNIGHT } as const;
 export type SeedSlotSet = keyof typeof SeedSlotSets;
 
-/** Which raw slot set seeds the table: SEED_SLOTS=small (default, the README example) or full (the 458-row dump). */
+/**
+ * Which raw slot set seeds the table: SEED_SLOTS=small (default, the README example), full (the 458-row dump),
+ * or midnight (six starts around New York midnight).
+ */
 export function seedSlotSetFromEnv(value = process.env.SEED_SLOTS): SeedSlotSet {
   if (value === undefined || value === "") return "small";
   if (value in SeedSlotSets) return value as SeedSlotSet;
@@ -61,4 +87,5 @@ export const slotRepository: SlotRepository = createMockSlotRepository(
     createdAt: new Date(),
     updatedAt: new Date(),
   })),
+  [{ id: SEED_CLINICIAN_ID, timezone: SEED_CLINICIAN_TIMEZONE }],
 );

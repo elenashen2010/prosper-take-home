@@ -2,14 +2,15 @@
 
 A patient who wants a psychological assessment sees the times they can book, grouped by
 clinician, where every offered option is two 90-minute sessions with the same psychologist
-on different days no more than 7 days apart, and only clinicians who operate in the
-patient's state and accept their insurance appear.
+on different days of that clinician's own calendar no more than 7 days apart, and only
+clinicians who operate in the patient's state and accept their insurance appear.
 
 ## Sub-features
 
 - `assess-eligible` returns options for a patient whose state and insurance match a psychologist.
-- `assess-grouped` groups options by clinician id.
-- `assess-pairs` offers each option as two slots on different UTC days, at most 7 days apart.
+- `assess-grouped` groups options by clinician id, and names the clinician's time zone.
+- `assess-pairs` offers each option as two slots on different days of the clinician's calendar (`clinician.timezone`), at most 7 days apart.
+- `assess-midnight` judges days in the clinician's zone, not UTC: two slots on one UTC day but two New York days pair, and two on one New York day never do.
 - `assess-state-miss` returns nothing for a patient in a state no clinician covers.
 - `assess-insurance-miss` returns nothing for a patient whose insurance no clinician accepts.
 
@@ -24,8 +25,9 @@ Preconditions:
 
 - Doctor reports `RESULT: READY`.
 - `$RUN` is this run's id.
-- Seed clinician Dr. Doe covers `NY` and `CA`, accepts `AETNA` and `CIGNA`, and has slots on
-  2024-08-19, 08-21, 08-22 and 08-28.
+- Seed clinician Dr. Doe covers `NY` and `CA`, accepts `AETNA` and `CIGNA`, keeps her
+  calendar in `America/New_York`, and has small-seed slots on 2024-08-19, 08-21, 08-22 and
+  08-28.
 
 - **Eligible patient.** Ask for the seed patient's options (NY, AETNA). Run
   `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --label assess-eligible --expect-min 1 --expect-contains 2024-08-19T12:00:00.000Z,2024-08-21T12:00:00.000Z`.
@@ -34,39 +36,50 @@ Preconditions:
   `2024-08-19T12:00:00.000Z` to `2024-08-28T12:15:00.000Z`.
 - **Paired sessions.** Check every option in that drive's output. Run
   `node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/$RUN/assessment-slots/assess-eligible`.
-  Exit 0 and `invalid: 0`: every option is one clinician, on different UTC days, at most
-  7 days apart. The pair `2024-08-19T12:00:00.000Z` + `2024-08-21T12:00:00.000Z` (from the
-  README example) is listed.
+  Exit 0 and `invalid: 0`: every option is one clinician, on different New York days, at
+  most 7 days apart. The pair `2024-08-19T12:00:00.000Z` + `2024-08-21T12:00:00.000Z`
+  (from the README example) is listed with `firstDay` `2024-08-19` and `secondDay`
+  `2024-08-21`.
 - **Eligible patient, full dump.** Repeat on the realistic table. Run
   `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --seed full --label assess-eligible-full --expect-min 1 --expect-contains 2024-08-19T12:00:00.000Z,2024-09-26T22:30:00.000Z`
   then `node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/$RUN/assessment-slots/assess-eligible-full`.
   Drive exit 0 with `slotDateRange` `2024-08-19T12:00:00.000Z` to `2024-09-26T22:30:00.000Z`;
   pairs.js exit 0 and `invalid: 0`.
 - **Grouped by clinician.** Open `output.json`. It is an array of groups, each with
-  `clinician.id`, `clinician.firstName`, `clinician.lastName` and an `options` list, and
-  pairs.js reports no slot whose clinician differs from its group's. With one seed clinician
-  there is exactly one group (`Jane Doe`); the unit test with two psychologists in
-  `src/schedulerApi.test.ts` covers multi-group ordering until the seed has a second
-  eligible clinician.
+  `clinician.id`, `clinician.firstName`, `clinician.lastName`, `clinician.timezone` and an
+  `options` list, and pairs.js reports no slot whose clinician differs from its group's.
+  With one seed clinician there is exactly one group (`Jane Doe`, `America/New_York`); the
+  unit tests with two psychologists in `src/schedulerApi.test.ts` cover multi-group
+  ordering and a second zone until the seed has a second eligible clinician.
+- **Days on the clinician's calendar.** Drive the midnight seed, whose six slots fall on
+  four UTC days but three New York days. Run
+  `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --seed midnight --label assess-midnight --expect-min 1 --expect-max 1 --expect-contains 2024-08-20T03:00:00.000Z,2024-08-28T03:30:00.000Z`
+  then `node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/$RUN/assessment-slots/assess-midnight`.
+  Drive exit 0 with one group; pairs.js exit 0 with `pairs: 8, invalid: 0`, and the listed
+  pairs include `2024-08-20T03:00:00.000Z` + `2024-08-20T13:00:00.000Z` (one UTC day, two
+  New York days, `firstDay` `2024-08-19`) and exclude `2024-08-20T13:00:00.000Z` +
+  `2024-08-21T02:30:00.000Z` (two UTC days, one New York day). A UTC-day scheduler gives 9
+  options here, not 8.
 - **State miss.** Same insurance, state `TX`. Seed-independent; run once. Run
   `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --label assess-state-miss --state TX --expect-max 0`.
   Exit 0 and `count` is 0.
 - **Insurance miss.** Same state, insurance `BCBS`. Seed-independent; run once. Run
   `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --label assess-insurance-miss --insurance BCBS --expect-max 0`.
   Exit 0 and `count` is 0.
-- **Proof.** The four evidence directories under `.verify-evidence/$RUN/assessment-slots/`
+- **Proof.** The five evidence directories under `.verify-evidence/$RUN/assessment-slots/`
   each hold `command.txt`, `input.json`, `output.json`, `summary.json`; the two eligible
-  directories also hold `pairs.json`.
+  directories and `assess-midnight` also hold `pairs.json`.
 
 ## Gotchas
 
-- As of 2026-10-14 (after README Tasks 1 and 2 landed) every journey here passes on both
-  seeds: the small seed gives exactly the README's 11 options in README order, the full
-  seed gives 9,999 options, and pairs.js reports 0 invalid on both.
+- As of 2026-10-14 (after README Tasks 1 and 2 and the clinician time zone column landed)
+  every journey here passes: the small seed gives exactly the README's 11 options in
+  README order, the full seed gives 9,999 options, the midnight seed gives 8, and pairs.js
+  reports 0 invalid on all three.
 - The output is an array of clinician groups, so `count` is the number of clinicians with
   options, not the number of options. Read `pairs.json` for the option count. pairs.js
-  reads the grouped shape (and the older tuple and flat shapes); any other return shape
-  makes it exit 2, so update pairs.js in the same change.
+  reads the grouped shape only, and needs `clinician.timezone` on every group; any other
+  return shape makes it exit 2, so update pairs.js in the same change.
 - Only psychologists appear. A therapist in the patient's state with their insurance is
   excluded by `clinicianType`, not by slot length.
 - The full-seed eligible drive writes about 6 MB of `output.json` and runs in about two
@@ -77,4 +90,9 @@ Preconditions:
 - Only the six small-set slots are seeded. The README's full 11-pair example list assumes
   the same six slots, but after README Task 2 is implemented slots like
   `2024-08-19T12:15:00.000Z` are legitimately hidden; do not expect the list verbatim.
-- Dates are UTC. "Different days" means different UTC calendar dates.
+- Slot dates are UTC instants, but "different days" means different dates on the
+  clinician's own calendar, the IANA zone in `clinician.timezone` (`America/New_York` for
+  Dr. Doe). `2024-08-20T03:00Z` is the evening of 08-19 in New York. The small and full
+  seeds start between 12:00Z and 22:30Z, where UTC and every US zone agree on the day, so
+  only the midnight seed and the unit tests in `src/schedulerApi.test.ts` tell the two
+  apart.

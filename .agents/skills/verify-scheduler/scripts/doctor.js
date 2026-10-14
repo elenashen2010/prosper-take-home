@@ -5,10 +5,11 @@
  * doctor.js - read-only check: is this checkout worth driving?
  *
  * Usage:
- *   node .agents/skills/verify-scheduler/scripts/doctor.js [--seed small|full] [--out <file.json>]
+ *   node .agents/skills/verify-scheduler/scripts/doctor.js [--seed small|full|midnight] [--out <file.json>]
  *
  * Checks toolchain, dependencies, a full type-check, the scheduler export, and the seed data.
- * --seed (default small) sets SEED_SLOTS so the seed checks describe the set a drive will use.
+ * --seed (default small) sets SEED_SLOTS so the seed checks describe the set a drive will use;
+ * an unknown seed fails the scheduler export check.
  * Exit 0 when every check is ok or warn; exit 1 when any check fails.
  * The only thing it writes is the optional --out report.
  */
@@ -19,10 +20,6 @@ const { findRepoRoot, parseArgs, registerTsNode } = require("./common");
 
 const args = parseArgs(process.argv.slice(2));
 const seed = args.seed || "small";
-if (!["small", "full"].includes(seed)) {
-  console.error(`--seed must be small or full, got ${seed}`);
-  process.exit(2);
-}
 process.env.SEED_SLOTS = seed;
 const checks = [];
 function run(name, fn) {
@@ -110,6 +107,7 @@ run("seed clinician", () => {
       id: clinician.id,
       name: `${clinician.firstName} ${clinician.lastName}`,
       type: clinician.clinicianType,
+      timezone: clinician.timezone,
       states: clinician.states,
       insurances: clinician.insurances,
       slots: clinician.availableSlots.length,

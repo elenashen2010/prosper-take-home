@@ -9,7 +9,8 @@ export interface ClinicianRepository {
    * SELECT * FROM "Clinician"
    * WHERE "clinicianType" = $clinicianType AND $state = ANY(states) AND $insurance = ANY(insurances)
    *
-   * Returns [] when none match. Returned rows are the table's own objects, not copies.
+   * Returns [] when none match. Returned rows are the table's own objects, not copies, and carry
+   * `timezone` as the row constructor parsed it.
    */
   findByTypeStateAndInsurance(query: ClinicianQuery): Clinician[];
 }

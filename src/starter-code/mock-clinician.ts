@@ -1,5 +1,5 @@
 import { Clinician } from "./clinician";
-import { SEED_CLINICIAN_ID, slotRepository } from "../mockSlotOrm";
+import { SEED_CLINICIAN_ID, SEED_CLINICIAN_TIMEZONE, slotRepository } from "../mockSlotOrm";
 
 export const clinician: Clinician = {
   id: SEED_CLINICIAN_ID,
@@ -8,6 +8,7 @@ export const clinician: Clinician = {
   states: ["NY", "CA"],
   insurances: ["AETNA", "CIGNA"],
   clinicianType: "PSYCHOLOGIST",
+  timezone: SEED_CLINICIAN_TIMEZONE,
   appointments: [],
   availableSlots: slotRepository.findByClinician(SEED_CLINICIAN_ID),
   maxDailyAppointments: 2,

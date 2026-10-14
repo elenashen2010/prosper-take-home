@@ -7,13 +7,13 @@
  * Usage:
  *   node .agents/skills/verify-scheduler/scripts/drive.js --feature <feature-id> [--run <run-id>]
  *        [--state NY] [--insurance AETNA] [--first Byrne] [--last Hollander] [--patient-id <id>]
- *        [--seed small|full] [--label <name>] [--expect-min N] [--expect-max N]
+ *        [--seed small|full|midnight] [--label <name>] [--expect-min N] [--expect-max N]
  *        [--expect-contains <iso[,iso...]>] [--expect-absent <iso[,iso...]>]
  *        [--print] [--out <evidence-root>]
  *
  * Defaults: the patient is the seed patient from src/starter-code/mock-patient.ts with any overrides
  * applied; run id is a timestamp; evidence root is <repo>/.verify-evidence; --seed is small.
- * --seed sets SEED_SLOTS before the app loads, which is how src/mockSlotOrm.ts picks its slot set.
+ * --seed sets SEED_SLOTS before the app loads; an unknown seed is reported as the scheduler throwing (exit 2).
  *
  * Evidence: <evidence-root>/<run>/<feature>/<label>/{command.txt,input.json,output.json,summary.json}
  *
@@ -38,10 +38,6 @@ if (!args.feature) {
 }
 
 const seed = args.seed || "small";
-if (!["small", "full"].includes(seed)) {
-  console.error(`--seed must be small or full, got ${seed}`);
-  process.exit(2);
-}
 process.env.SEED_SLOTS = seed;
 
 const root = findRepoRoot(__dirname);
@@ -69,7 +65,7 @@ if (!InsurancePayers.includes(patient.insurance)) {
 }
 
 const runId = args.run || defaultRunId();
-const label = args.label || `${patient.state}-${patient.insurance}${seed === "full" ? "-full" : ""}`;
+const label = args.label || `${patient.state}-${patient.insurance}${seed === "small" ? "" : `-${seed}`}`;
 const featureRoot = path.join(evidenceRoot(root, args), runId, args.feature);
 let dir = path.join(featureRoot, label);
 for (let n = 2; fs.existsSync(dir); n++) dir = path.join(featureRoot, `${label}-${n}`);
@@ -80,11 +76,11 @@ fs.writeFileSync(path.join(dir, "input.json"), JSON.stringify(toPlain(patient), 
 const apiPath = path.join(root, "src", "schedulerApi.ts");
 const apiSha256 = crypto.createHash("sha256").update(fs.readFileSync(apiPath)).digest("hex");
 
-const { findAvailableSlots } = require(path.join(root, "src", "schedulerApi"));
 const started = Date.now();
 let result;
 let error = null;
 try {
+  const { findAvailableSlots } = require(path.join(root, "src", "schedulerApi"));
   result = findAvailableSlots(patient);
 } catch (e) {
   error = { message: e && e.message ? e.message : String(e), stack: e && e.stack ? e.stack : null };

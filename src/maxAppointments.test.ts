@@ -1,6 +1,6 @@
 import { filterForMaxAppointments } from "./maxAppointments";
 import { MOCK_SLOT_DATA } from "./starter-code/mock-slot-data";
-import { utcDayOf } from "./utcDay";
+import { localDayOf, parseTimeZone } from "./localDay";
 
 const at = (iso: string) => new Date(iso);
 const times = (dates: Date[]) => dates.map((d) => d.toISOString());
@@ -107,10 +107,12 @@ describe("filterForMaxAppointments", () => {
   });
 
   it("keeps 246 of the full seed's 458 slots, day by day", () => {
+    const newYork = parseTimeZone("America/New_York");
     const days = new Map<string, Date[]>();
     for (const row of MOCK_SLOT_DATA) {
       const date = new Date(row.date);
-      days.set(utcDayOf(date), [...(days.get(utcDayOf(date)) ?? []), date]);
+      const day = localDayOf(date, newYork);
+      days.set(day, [...(days.get(day) ?? []), date]);
     }
     const kept = new Map([...days].map(([day, dates]) => [day, filterForMaxAppointments(dates, 90)]));
     const hhmm = (day: string) => (kept.get(day) ?? []).map((d) => d.toISOString().slice(11, 16));

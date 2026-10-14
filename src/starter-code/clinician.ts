@@ -1,3 +1,4 @@
+import { TimeZone } from "../localDay";
 import { Appointment, AvailableAppointmentSlot } from "./appointment";
 import { InsurancePayer } from "./payer";
 import { UsStateAbbreviation } from "./us-states";
@@ -13,6 +14,7 @@ export interface Clinician {
   states: UsStateAbbreviation[];
   insurances: InsurancePayer[];
   clinicianType: ClinicianType;
+  timezone: TimeZone;
   appointments: Appointment[];
   availableSlots: AvailableAppointmentSlot[];
   maxDailyAppointments: number;

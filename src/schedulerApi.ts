@@ -4,22 +4,25 @@ import { Patient } from "./starter-code/patient";
 import { ClinicianRepository, clinicianRepository } from "./mockClinicianOrm";
 import { SlotRepository, slotRepository } from "./mockSlotOrm";
 import { filterForMaxAppointments } from "./maxAppointments";
-import { daysBetween, UtcDay, utcDayOf } from "./utcDay";
+import { daysBetween, LocalDay, localDayOf, TimeZone } from "./localDay";
 
-/** The two sessions of an assessment start on different UTC days at most this many days apart. */
+/** The two sessions of an assessment start on different days of the clinician's calendar at most this many days apart. */
 export const MAX_ASSESSMENT_DAY_GAP = 7;
 
 const ASSESSMENT_SESSION_MINUTES = 90;
 
-/** Two sessions with one psychologist, `first` on an earlier UTC day than `second`, 1 to MAX_ASSESSMENT_DAY_GAP days apart. */
+/** Two sessions with one psychologist, `first` on an earlier local day than `second`, 1 to MAX_ASSESSMENT_DAY_GAP days apart. */
 export interface AssessmentOption {
   readonly first: AvailableAppointmentSlot;
   readonly second: AvailableAppointmentSlot;
 }
 
-/** Everything one psychologist can offer the patient. `options` is never empty and is in README order (by first, then second). */
+/**
+ * Everything one psychologist can offer the patient. `options` is never empty and is in README order (by first,
+ * then second). `clinician.timezone` is the calendar every day in `options` was judged on.
+ */
 export interface ClinicianAssessmentOptions {
-  readonly clinician: Pick<Clinician, "id" | "firstName" | "lastName">;
+  readonly clinician: Pick<Clinician, "id" | "firstName" | "lastName" | "timezone">;
   readonly options: readonly AssessmentOption[];
 }
 
@@ -33,8 +36,8 @@ const seededRepositories: SchedulerRepositories = { clinicians: clinicianReposit
 /**
  * Assessment options the patient can book, grouped by clinician (README Task 1).
  * Eligible clinicians operate in the patient's state, accept the patient's insurance, and are psychologists.
- * Each day offers only starts that keep that day's maximum number of sessions bookable (README Task 2).
- * Clinicians with no valid pair are omitted. One slot query per eligible psychologist.
+ * Days are the clinician's local days. Each day offers only starts that keep that day's maximum number of
+ * sessions bookable (README Task 2). Clinicians with no valid pair are omitted. One slot query per eligible psychologist.
  */
 export function findAvailableSlots(
   patient: Patient,
@@ -42,15 +45,15 @@ export function findAvailableSlots(
 ): ClinicianAssessmentOptions[] {
   return repositories.clinicians
     .findByTypeStateAndInsurance({ clinicianType: "PSYCHOLOGIST", state: patient.state, insurance: patient.insurance })
-    .map(({ id, firstName, lastName }) => ({
-      clinician: { id, firstName, lastName },
-      options: pairAssessmentSlots(repositories.slots.findByClinician(id)),
+    .map(({ id, firstName, lastName, timezone }) => ({
+      clinician: { id, firstName, lastName, timezone },
+      options: pairAssessmentSlots(repositories.slots.findByClinician(id), timezone),
     }))
     .filter((group) => group.options.length > 0);
 }
 
-function pairAssessmentSlots(slots: readonly AvailableAppointmentSlot[]): AssessmentOption[] {
-  const days = keepMaxBookableSlotsPerDay(slotsByUtcDay(slots));
+function pairAssessmentSlots(slots: readonly AvailableAppointmentSlot[], timezone: TimeZone): AssessmentOption[] {
+  const days = keepMaxBookableSlotsPerDay(slotsByLocalDay(slots, timezone));
   const options: AssessmentOption[] = [];
   const dayEntries = [...days.entries()];
   dayEntries.forEach(([day, firsts], i) => {
@@ -65,10 +68,10 @@ function pairAssessmentSlots(slots: readonly AvailableAppointmentSlot[]): Assess
   return options;
 }
 
-function slotsByUtcDay(slots: readonly AvailableAppointmentSlot[]): Map<UtcDay, AvailableAppointmentSlot[]> {
-  const buckets = new Map<UtcDay, AvailableAppointmentSlot[]>();
+function slotsByLocalDay(slots: readonly AvailableAppointmentSlot[], timezone: TimeZone): Map<LocalDay, AvailableAppointmentSlot[]> {
+  const buckets = new Map<LocalDay, AvailableAppointmentSlot[]>();
   for (const slot of [...slots].sort((a, b) => a.date.getTime() - b.date.getTime())) {
-    const day = utcDayOf(slot.date);
+    const day = localDayOf(slot.date, timezone);
     const bucket = buckets.get(day);
     if (bucket) bucket.push(slot);
     else buckets.set(day, [slot]);
@@ -76,8 +79,8 @@ function slotsByUtcDay(slots: readonly AvailableAppointmentSlot[]): Map<UtcDay, 
   return buckets;
 }
 
-function keepMaxBookableSlotsPerDay(days: Map<UtcDay, AvailableAppointmentSlot[]>): Map<UtcDay, AvailableAppointmentSlot[]> {
-  const optimized = new Map<UtcDay, AvailableAppointmentSlot[]>();
+function keepMaxBookableSlotsPerDay(days: Map<LocalDay, AvailableAppointmentSlot[]>): Map<LocalDay, AvailableAppointmentSlot[]> {
+  const optimized = new Map<LocalDay, AvailableAppointmentSlot[]>();
   for (const [day, slots] of days) {
     const kept = new Set(filterForMaxAppointments(slots.map((s) => s.date), ASSESSMENT_SESSION_MINUTES).map((d) => d.getTime()));
     optimized.set(day, slots.filter((s) => kept.has(s.date.getTime())));
