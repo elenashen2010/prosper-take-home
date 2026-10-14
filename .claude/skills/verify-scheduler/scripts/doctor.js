@@ -122,21 +122,8 @@ run("seed clinician", () => {
   };
 });
 
-// Every clinician the repository holds: the union of its one query over every type, state, and insurance.
 function allClinicians() {
-  const { clinicianRepository } = require(path.join(root, "src", "mockClinicianOrm"));
-  const { ClinicianTypes } = require(path.join(root, "src", "starter-code", "clinician"));
-  const { UsStateAbbreviations } = require(path.join(root, "src", "starter-code", "us-states"));
-  const { InsurancePayers } = require(path.join(root, "src", "starter-code", "payer"));
-  const byId = new Map();
-  for (const clinicianType of ClinicianTypes) {
-    for (const state of UsStateAbbreviations) {
-      for (const insurance of InsurancePayers) {
-        for (const c of clinicianRepository.findByTypeStateAndInsurance({ clinicianType, state, insurance })) byId.set(c.id, c);
-      }
-    }
-  }
-  return [...byId.values()];
+  return require(path.join(root, "src", "mockClinicianOrm")).clinicianRepository.findAll();
 }
 
 function allSlots() {

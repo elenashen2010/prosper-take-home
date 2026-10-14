@@ -14,6 +14,12 @@ export interface ClinicianRepository {
    * `timezone` as the row constructor parsed it.
    */
   findByTypeStateAndInsurance(query: ClinicianQuery): Clinician[];
+  /**
+   * SELECT * FROM "Clinician"
+   *
+   * Every row in table order; [] from an empty table. Returned rows are the table's own objects, not copies.
+   */
+  findAll(): Clinician[];
 }
 
 export function createMockClinicianRepository(rows: readonly Clinician[]): ClinicianRepository {
@@ -23,6 +29,7 @@ export function createMockClinicianRepository(rows: readonly Clinician[]): Clini
       table.filter(
         (c) => c.clinicianType === clinicianType && c.states.includes(state) && c.insurances.includes(insurance),
       ),
+    findAll: () => [...table],
   };
 }
 

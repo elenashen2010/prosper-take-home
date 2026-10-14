@@ -3,11 +3,10 @@ import { patient as readmePatient } from "./mock-patient";
 import { Patient } from "./patient";
 
 interface RosterClinician extends SeedClinician {
-  /** The handle scenarios name the clinician by. */
   readonly key: string;
 }
 
-const BOOKED = "5eedb00c-0000-4000-8000-000000000000"; // patient on every roster appointment; the scheduler never reads it
+const ANY_PATIENT_ID = "5eedb00c-0000-4000-8000-000000000000";
 
 export const ROSTER_CLINICIANS = [
   // Pairing bounds: same day never, exactly 7 days yes, 8 days no. Slots later than desai's, listed first: groups follow repository order.
@@ -53,7 +52,7 @@ export const ROSTER_CLINICIANS = [
       "2024-09-24T14:00:00.000Z", "2024-09-24T14:15:00.000Z", "2024-09-24T14:30:00.000Z",
       "2024-09-26T14:00:00.000Z",
     ],
-    appointments: [{ patientId: BOOKED, scheduledFor: "2024-09-24T18:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" }] },
+    appointments: [{ patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-24T18:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" }] },
   // Evening ladder 16:00-17:30 PDT crosses UTC midnight: one local day, so only its ends survive.
   { key: "lund", id: "5eed0000-0000-4000-8000-000000000010", firstName: "Lena", lastName: "Lund", clinicianType: "PSYCHOLOGIST",
     timezone: "America/Los_Angeles", states: ["WA", "OR"], insurances: ["BCBS"], maxDailyAppointments: 2, maxWeeklyAppointments: 8,
@@ -68,25 +67,25 @@ export const ROSTER_CLINICIANS = [
     timezone: "America/Chicago", states: ["GA"], insurances: ["UNITED"], maxDailyAppointments: 2, maxWeeklyAppointments: 10,
     slots: ["2024-09-10T14:00:00.000Z", "2024-09-11T14:00:00.000Z", "2024-09-12T14:00:00.000Z"],
     appointments: [
-      { patientId: BOOKED, scheduledFor: "2024-09-11T17:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" },
-      { patientId: BOOKED, scheduledFor: "2024-09-11T19:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_2", status: "UPCOMING" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-11T17:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-11T19:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_2", status: "UPCOMING" },
     ] },
   // Week of 09-09 holds 3 of 4 (Mon, Fri, Sun): one more fits, a same-week pair does not. The Sunday row is what makes this row depend on the week start.
   { key: "nakamura", id: "5eed0000-0000-4000-8000-000000000012", firstName: "Nia", lastName: "Nakamura", clinicianType: "PSYCHOLOGIST",
     timezone: "America/Chicago", states: ["GA"], insurances: ["UNITED"], maxDailyAppointments: 3, maxWeeklyAppointments: 4,
     slots: ["2024-09-10T14:00:00.000Z", "2024-09-11T14:00:00.000Z", "2024-09-16T14:00:00.000Z"],
     appointments: [
-      { patientId: BOOKED, scheduledFor: "2024-09-09T18:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" },
-      { patientId: BOOKED, scheduledFor: "2024-09-13T18:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "OCCURRED" },
-      { patientId: BOOKED, scheduledFor: "2024-09-15T18:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-09T18:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-13T18:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "OCCURRED" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-15T18:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" },
     ] },
   // A held therapy row blocks 60 minutes, a held assessment 90: 16:00Z touches the first, 16:00Z overlaps the second, 16:30Z touches it.
   { key: "okafor", id: "5eed0000-0000-4000-8000-000000000013", firstName: "Obi", lastName: "Okafor", clinicianType: "PSYCHOLOGIST",
     timezone: "America/Chicago", states: ["GA"], insurances: ["UNITED"], maxDailyAppointments: 3, maxWeeklyAppointments: 8,
     slots: ["2024-09-11T16:00:00.000Z", "2024-09-12T16:00:00.000Z", "2024-09-12T16:30:00.000Z"],
     appointments: [
-      { patientId: BOOKED, scheduledFor: "2024-09-11T15:00:00.000Z", appointmentType: "THERAPY_SIXTY_MINS", status: "UPCOMING" },
-      { patientId: BOOKED, scheduledFor: "2024-09-12T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-11T15:00:00.000Z", appointmentType: "THERAPY_SIXTY_MINS", status: "UPCOMING" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-12T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" },
     ] },
   // One row per status, each at a slot's own start. Freed rows would fill week 09-09 (cap 5) and day 09-16 (cap 2) if counted.
   { key: "quinn", id: "5eed0000-0000-4000-8000-000000000014", firstName: "Quin", lastName: "Quinn", clinicianType: "PSYCHOLOGIST",
@@ -96,19 +95,19 @@ export const ROSTER_CLINICIANS = [
       "2024-09-12T15:00:00.000Z", "2024-09-13T15:00:00.000Z", "2024-09-16T15:00:00.000Z",
     ],
     appointments: [
-      { patientId: BOOKED, scheduledFor: "2024-09-09T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" },
-      { patientId: BOOKED, scheduledFor: "2024-09-10T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "OCCURRED" },
-      { patientId: BOOKED, scheduledFor: "2024-09-11T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "NO_SHOW" },
-      { patientId: BOOKED, scheduledFor: "2024-09-12T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "RE_SCHEDULED" },
-      { patientId: BOOKED, scheduledFor: "2024-09-13T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "CANCELLED" },
-      { patientId: BOOKED, scheduledFor: "2024-09-16T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "LATE_CANCELLATION" },
-      { patientId: BOOKED, scheduledFor: "2024-09-16T19:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "LATE_CANCELLATION" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-09T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-10T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "OCCURRED" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-11T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "NO_SHOW" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-12T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "RE_SCHEDULED" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-13T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "CANCELLED" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-16T15:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "LATE_CANCELLATION" },
+      { patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-16T19:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "LATE_CANCELLATION" },
     ] },
   // 2024-09-11T08:00Z is 09-10 22:00 HST: it fills 09-10 (cap 1), not its UTC day 09-11.
   { key: "akana", id: "5eed0000-0000-4000-8000-000000000015", firstName: "Ike", lastName: "Akana", clinicianType: "PSYCHOLOGIST",
     timezone: "Pacific/Honolulu", states: ["GA"], insurances: ["UNITED"], maxDailyAppointments: 1, maxWeeklyAppointments: 8,
     slots: ["2024-09-10T19:00:00.000Z", "2024-09-11T19:00:00.000Z", "2024-09-12T19:00:00.000Z"],
-    appointments: [{ patientId: BOOKED, scheduledFor: "2024-09-11T08:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" }] },
+    appointments: [{ patientId: ANY_PATIENT_ID, scheduledFor: "2024-09-11T08:00:00.000Z", appointmentType: "ASSESSMENT_SESSION_1", status: "UPCOMING" }] },
   // maxDailyAppointments 0 with pairable slots and no appointments.
   { key: "zimmer", id: "5eed0000-0000-4000-8000-000000000016", firstName: "Zed", lastName: "Zimmer", clinicianType: "PSYCHOLOGIST",
     timezone: "America/Chicago", states: ["GA"], insurances: ["UNITED"], maxDailyAppointments: 0, maxWeeklyAppointments: 8,

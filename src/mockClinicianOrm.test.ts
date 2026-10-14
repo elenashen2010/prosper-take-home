@@ -57,6 +57,10 @@ describe("clinicianRepository", () => {
       clinicianRepository.findByTypeStateAndInsurance({ clinicianType: "PSYCHOLOGIST", state: "NY", insurance: "BCBS" }),
     ).toEqual([]);
   });
+
+  it("lists only the seed clinician in this test run", () => {
+    expect(clinicianRepository.findAll()).toEqual([seedClinician]);
+  });
 });
 
 describe("createMockClinicianRepository", () => {
@@ -87,6 +91,15 @@ describe("createMockClinicianRepository", () => {
   it("returns nothing from an empty table", () => {
     const repo = createMockClinicianRepository([]);
     expect(repo.findByTypeStateAndInsurance({ ...therapistIn, state: "NY", insurance: "AETNA" })).toEqual([]);
+    expect(repo.findAll()).toEqual([]);
+  });
+
+  it("lists every row in table order, whatever the query columns hold", () => {
+    const repo = createMockClinicianRepository([
+      makeClinician({ id: "b", states: ["CA"], insurances: ["BCBS"] }),
+      makeClinician({ id: "a", states: ["NY"], insurances: ["AETNA"], clinicianType: "PSYCHOLOGIST" }),
+    ]);
+    expect(repo.findAll().map((c) => c.id)).toEqual(["b", "a"]);
   });
 
   it("finds exactly the matching rows among 400", () => {
