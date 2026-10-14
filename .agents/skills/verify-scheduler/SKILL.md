@@ -17,8 +17,8 @@ not the scheduler itself.
 
 The scheduler is a pure function over the seed data. Driving it means: build a patient,
 call the function the same way `index.ts` does, record what came back. As of 2026-10-14 it
-returns an array of `[AvailableAppointmentSlot, AvailableAppointmentSlot]` tuples, one per
-two-session assessment option.
+returns one group per eligible psychologist, `{ clinician: { id, firstName, lastName },
+options: { first, second }[] }`, where each option is a two-session assessment pair.
 
 ## Launch
 
@@ -99,10 +99,11 @@ files say what to inspect by hand.
 node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/<run-id>/<feature>/<label> [--max-gap-days 7]
 ```
 
-Checks the README pairing rule over a drive's `output.json`: each option is one clinician,
-on different UTC days, at most 7 days apart. It reads an array of `[slot, slot]` tuples,
-or a flat even-length list of slots taken two at a time. Exit 0 when all pairs are valid,
-1 when any violates, 2 when the output is neither shape. It writes `pairs.json` next to the
+Checks the README pairing rule over a drive's `output.json`: each option is one clinician
+(the group's clinician), on different UTC days, at most 7 days apart. It reads clinician
+groups with `{ first, second }` options, an array of `[slot, slot]` tuples, or a flat
+even-length list of slots taken two at a time. Exit 0 when all pairs are valid, 1 when any
+violates, 2 when the output is none of those shapes. It writes `pairs.json` next to the
 output as evidence.
 
 Feature recipes live in [features/README.md](features/README.md). Drive the feature's
@@ -122,9 +123,9 @@ drive writes:
 
 Keep the doctor report next to it: `doctor.js --out .verify-evidence/<run-id>/doctor.json`.
 
-Size: a full-seed eligible drive writes about 51 MB of `output.json` while the scheduler
-emits every cross-day combination (about 100,000 options). That is expected until README
-Tasks 1 and 2 are complete; do not trim the output to save space.
+Size: a full-seed eligible drive writes about 22 MB of `output.json` (37,165 options for
+one psychologist with the 7-day rule applied). That shrinks once README Task 2 hides
+overlapping slots; do not trim the output to save space.
 
 Proof standards for this app:
 
@@ -184,11 +185,10 @@ node .agents/skills/verify-scheduler/scripts/cleanup.js --run $RUN
 In PowerShell, set the run id with `$RUN = Get-Date -Format yyyyMMdd-HHmmss`; the `node`
 commands are then identical.
 
-Proven 2026-10-14 on this checkout. Small seed: doctor READY with two seed warnings,
-`assess-eligible` exit 0 with 13 options, pairs.js exit 1 with 2 of 13 options 9 days
-apart (a product finding), both miss drives exit 0, `opt-keep-first` exit 1 because no
-optimization exists yet, `opt-independent` exit 0. Full seed: doctor READY,
-`assess-eligible` exit 0 with 100,422 options in 51 MB, pairs.js exit 1 with 63,257
-options beyond 7 days, both miss drives exit 0, `opt-ladder` exit 1 because the five
-intermediate starts are not hidden. Cleanup kept every evidence file in every run. First
-proven 2026-10-13 against the starter stub (count 0).
+Proven 2026-10-14 on this checkout after README Task 1 landed. Small seed: doctor READY
+with two seed warnings, `assess-eligible` exit 0 with one group of 11 options in README
+order, pairs.js exit 0, both miss drives exit 0. Full seed: `assess-eligible` exit 0 with
+one group of 37,165 options in 22 MB, pairs.js exit 0. Earlier the same day, before
+Task 1, pairs.js reported 9-day pairs on both seeds, and `opt-keep-first` and `opt-ladder`
+still fail because README Task 2 is not implemented. Cleanup kept every evidence file in
+every run. First proven 2026-10-13 against the starter stub (count 0).

@@ -26,30 +26,46 @@ function idsOf(clinicians: Clinician[]): string[] {
   return clinicians.map((c) => c.id).sort();
 }
 
+const therapistIn = { clinicianType: "THERAPIST" } as const;
+
 describe("clinicianRepository", () => {
   it("returns the seeded clinician object itself for the seed patient", () => {
-    const found = clinicianRepository.findByStateAndInsurance(patient);
+    const found = clinicianRepository.findByTypeStateAndInsurance({ ...patient, clinicianType: "PSYCHOLOGIST" });
     expect(idsOf(found)).toEqual(["9c516382-c5b2-4677-a7ac-4e100fa35bdd"]);
     expect(found[0]).toBe(seedClinician);
   });
 
+  it("returns nothing when the type does not match", () => {
+    expect(clinicianRepository.findByTypeStateAndInsurance({ ...patient, clinicianType: "THERAPIST" })).toEqual([]);
+  });
+
   it("returns nothing when the state does not match", () => {
-    expect(clinicianRepository.findByStateAndInsurance({ state: "TX", insurance: "AETNA" })).toEqual([]);
+    expect(
+      clinicianRepository.findByTypeStateAndInsurance({ clinicianType: "PSYCHOLOGIST", state: "TX", insurance: "AETNA" }),
+    ).toEqual([]);
   });
 
   it("returns nothing when the insurance does not match", () => {
-    expect(clinicianRepository.findByStateAndInsurance({ state: "NY", insurance: "BCBS" })).toEqual([]);
+    expect(
+      clinicianRepository.findByTypeStateAndInsurance({ clinicianType: "PSYCHOLOGIST", state: "NY", insurance: "BCBS" }),
+    ).toEqual([]);
   });
 });
 
 describe("createMockClinicianRepository", () => {
-  it("requires both state and insurance to match", () => {
+  it("requires type, state, and insurance to match", () => {
     const repo = createMockClinicianRepository([
       makeClinician({ id: "state-only", states: ["NY"], insurances: ["BCBS"] }),
       makeClinician({ id: "insurance-only", states: ["CA"], insurances: ["AETNA"] }),
-      makeClinician({ id: "both", states: ["NY"], insurances: ["AETNA"] }),
+      makeClinician({ id: "psychologist", states: ["NY"], insurances: ["AETNA"], clinicianType: "PSYCHOLOGIST" }),
+      makeClinician({ id: "therapist", states: ["NY"], insurances: ["AETNA"] }),
     ]);
-    expect(idsOf(repo.findByStateAndInsurance({ state: "NY", insurance: "AETNA" }))).toEqual(["both"]);
+    expect(idsOf(repo.findByTypeStateAndInsurance({ ...therapistIn, state: "NY", insurance: "AETNA" }))).toEqual([
+      "therapist",
+    ]);
+    expect(
+      idsOf(repo.findByTypeStateAndInsurance({ clinicianType: "PSYCHOLOGIST", state: "NY", insurance: "AETNA" })),
+    ).toEqual(["psychologist"]);
   });
 
   it("matches on any element of either array", () => {
@@ -57,13 +73,13 @@ describe("createMockClinicianRepository", () => {
       makeClinician({ id: "multi", states: ["CA", "TX", "NY"], insurances: ["UNITED", "AETNA"] }),
       makeClinician({ id: "other", states: ["FL"], insurances: ["CIGNA"] }),
     ]);
-    expect(idsOf(repo.findByStateAndInsurance({ state: "NY", insurance: "AETNA" }))).toEqual(["multi"]);
-    expect(idsOf(repo.findByStateAndInsurance({ state: "TX", insurance: "UNITED" }))).toEqual(["multi"]);
+    expect(idsOf(repo.findByTypeStateAndInsurance({ ...therapistIn, state: "NY", insurance: "AETNA" }))).toEqual(["multi"]);
+    expect(idsOf(repo.findByTypeStateAndInsurance({ ...therapistIn, state: "TX", insurance: "UNITED" }))).toEqual(["multi"]);
   });
 
   it("returns nothing from an empty table", () => {
     const repo = createMockClinicianRepository([]);
-    expect(repo.findByStateAndInsurance({ state: "NY", insurance: "AETNA" })).toEqual([]);
+    expect(repo.findByTypeStateAndInsurance({ ...therapistIn, state: "NY", insurance: "AETNA" })).toEqual([]);
   });
 
   it("finds exactly the matching rows among 400", () => {
@@ -75,28 +91,34 @@ describe("createMockClinicianRepository", () => {
       }),
     );
     const repo = createMockClinicianRepository(rows);
-    expect(idsOf(repo.findByStateAndInsurance({ state: "NY", insurance: "UNITED" }))).toEqual([
+    expect(idsOf(repo.findByTypeStateAndInsurance({ ...therapistIn, state: "NY", insurance: "UNITED" }))).toEqual([
       "c-031",
       "c-131",
       "c-231",
       "c-331",
     ]);
-    expect(repo.findByStateAndInsurance({ state: "NY", insurance: "AETNA" })).toEqual([]);
+    expect(repo.findByTypeStateAndInsurance({ ...therapistIn, state: "NY", insurance: "AETNA" })).toEqual([]);
   });
 
   it("ignores rows pushed to the caller's array after construction", () => {
     const seed = [makeClinician({ id: "original", states: ["NY"], insurances: ["AETNA"] })];
     const repo = createMockClinicianRepository(seed);
     seed.push(makeClinician({ id: "late", states: ["NY"], insurances: ["AETNA"] }));
-    expect(idsOf(repo.findByStateAndInsurance({ state: "NY", insurance: "AETNA" }))).toEqual(["original"]);
+    expect(idsOf(repo.findByTypeStateAndInsurance({ ...therapistIn, state: "NY", insurance: "AETNA" }))).toEqual([
+      "original",
+    ]);
   });
 
-  it("rejects values outside the state and insurance enums at compile time", () => {
+  it("rejects values outside the type, state, and insurance enums at compile time", () => {
     const typeChecksOnly = () => {
       // @ts-expect-error lowercase state is not a UsStateAbbreviation
-      clinicianRepository.findByStateAndInsurance({ state: "ny", insurance: "AETNA" });
+      clinicianRepository.findByTypeStateAndInsurance({ ...therapistIn, state: "ny", insurance: "AETNA" });
       // @ts-expect-error a state is not an InsurancePayer
-      clinicianRepository.findByStateAndInsurance({ state: "NY", insurance: "NY" });
+      clinicianRepository.findByTypeStateAndInsurance({ ...therapistIn, state: "NY", insurance: "NY" });
+      // @ts-expect-error an unknown clinician type is not a ClinicianType
+      clinicianRepository.findByTypeStateAndInsurance({ clinicianType: "NURSE", state: "NY", insurance: "AETNA" });
+      // @ts-expect-error the clinician type is required
+      clinicianRepository.findByTypeStateAndInsurance({ state: "NY", insurance: "AETNA" });
     };
     expect(typeof typeChecksOnly).toBe("function");
   });

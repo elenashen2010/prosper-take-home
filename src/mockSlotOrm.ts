@@ -4,16 +4,22 @@ import { UtcDay, utcDayOf } from "./utcDay";
 
 export interface SlotRepository {
   /**
-   * AvailableSlot rows for `clinicianId`, in table order. Returns [] for an unknown clinician.
-   * With `days`, only rows that start on one of those UTC days; an empty list matches nothing.
-   * Returned rows are the table's own objects, not copies.
+   * SELECT * FROM "AvailableSlot"
+   * WHERE "clinicianId" = $clinicianId
+   *   [AND (date AT TIME ZONE 'UTC')::date = ANY($days)]
+   *
+   * Rows in table order. Returns [] for an unknown clinician. The optional `days` clause keeps only rows
+   * that start on one of those UTC days; an empty list matches nothing. Returned rows are the table's own
+   * objects, not copies.
    */
   findByClinician(
     clinicianId: AvailableAppointmentSlot["clinicianId"],
     days?: readonly UtcDay[],
   ): AvailableAppointmentSlot[];
   /**
-   * Distinct UTC days on which `clinicianId` has at least one AvailableSlot row, ascending.
+   * SELECT DISTINCT (date AT TIME ZONE 'UTC')::date AS day FROM "AvailableSlot"
+   * WHERE "clinicianId" = $clinicianId ORDER BY day
+   *
    * A slot counts on the day it starts (see utcDayOf). Returns [] for an unknown clinician, a fresh array each call.
    */
   findSlotDaysByClinician(clinicianId: AvailableAppointmentSlot["clinicianId"]): UtcDay[];

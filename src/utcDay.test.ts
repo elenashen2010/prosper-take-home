@@ -1,4 +1,4 @@
-import { UtcDay, utcDayOf } from "./utcDay";
+import { daysBetween, UtcDay, utcDayOf } from "./utcDay";
 
 describe("utcDayOf", () => {
   it("returns the calendar day of a midday instant", () => {
@@ -28,5 +28,29 @@ describe("utcDayOf", () => {
       void day;
     };
     expect(typeof typeChecksOnly).toBe("function");
+  });
+});
+
+describe("daysBetween", () => {
+  const day = (iso: string) => utcDayOf(new Date(iso));
+
+  it("is 0 for the same day", () => {
+    expect(daysBetween(day("2024-08-21T12:00:00.000Z"), day("2024-08-21T15:00:00.000Z"))).toBe(0);
+  });
+
+  it("counts a week as 7", () => {
+    expect(daysBetween(day("2024-08-21T12:00:00.000Z"), day("2024-08-28T12:15:00.000Z"))).toBe(7);
+  });
+
+  it("counts 9 days from 08-19 to 08-28", () => {
+    expect(daysBetween(day("2024-08-19T12:00:00.000Z"), day("2024-08-28T12:15:00.000Z"))).toBe(9);
+  });
+
+  it("is negative when the second day is earlier", () => {
+    expect(daysBetween(day("2024-08-28T12:00:00.000Z"), day("2024-08-21T12:00:00.000Z"))).toBe(-7);
+  });
+
+  it("counts across a month boundary", () => {
+    expect(daysBetween(day("2024-08-30T12:00:00.000Z"), day("2024-09-02T12:00:00.000Z"))).toBe(3);
   });
 });

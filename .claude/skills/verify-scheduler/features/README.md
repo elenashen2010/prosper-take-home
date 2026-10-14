@@ -28,9 +28,11 @@ Read this index before driving, then use the matching feature file as the recipe
 - Every drive is `node .agents/skills/verify-scheduler/scripts/drive.js --feature <id> --run <run> ...`.
 - The patient defaults to the seed patient; change only the fields the recipe names.
 - Treat every command as literal. Keep ISO timestamps exactly as written (UTC, milliseconds).
-- The scheduler returns an array of `[session1, session2]` tuples, one per assessment
-  option, so `summary.json`'s `count` is the number of options and `slotDatesFound` is
-  twice that. `scripts/pairs.js` checks the pairing rule over that output.
+- The scheduler returns one group per eligible psychologist, each with `clinician`
+  (`id`, `firstName`, `lastName`) and `options` as `{ first, second }` slot pairs. So
+  `summary.json`'s `count` is the number of clinicians with options, `slotDatesFound` is
+  twice the number of options, and `byClinician` counts option slots per clinician.
+  `scripts/pairs.js` checks the pairing rule over that output.
 - Run the eligible-patient journey before any miss journey, so a "returns nothing"
   expectation is read next to a known non-empty result.
 - Inspect `output.json` when a recipe asks for a by-hand check; `summary.json` is

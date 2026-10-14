@@ -42,10 +42,12 @@ Preconditions:
   then `node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/$RUN/assessment-slots/assess-eligible-full`.
   Drive exit 0 with `slotDateRange` `2024-08-19T12:00:00.000Z` to `2024-09-26T22:30:00.000Z`;
   pairs.js exit 0 and `invalid: 0`.
-- **Grouped by clinician.** Open `output.json`. Every slot carries the clinician id it
-  belongs to. With one seed clinician there is exactly one group, so grouping across
-  clinicians cannot be distinguished from a flat list; report `assess-grouped` as blocked
-  on a second eligible seed clinician.
+- **Grouped by clinician.** Open `output.json`. It is an array of groups, each with
+  `clinician.id`, `clinician.firstName`, `clinician.lastName` and an `options` list, and
+  pairs.js reports no slot whose clinician differs from its group's. With one seed clinician
+  there is exactly one group (`Jane Doe`); the unit test with two psychologists in
+  `src/schedulerApi.test.ts` covers multi-group ordering until the seed has a second
+  eligible clinician.
 - **State miss.** Same insurance, state `TX`. Seed-independent; run once. Run
   `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --label assess-state-miss --state TX --expect-max 0`.
   Exit 0 and `count` is 0.
@@ -58,17 +60,18 @@ Preconditions:
 
 ## Gotchas
 
-- As of 2026-10-14 the scheduler pairs every slot on day i with every slot on day j for
-  all day pairs and applies no 7-day cap, so `assess-pairs` fails on both seeds: small has
-  2 of 13 options 9 days apart (`2024-08-19T12:00` + `2024-08-28T12:15`); full has 63,257
-  of 100,422 options beyond 7 days. That is a product gap, not a harness problem; keep the
-  expectation.
-- The output is an array of `[session1, session2]` tuples, so `count` is the number of
-  options. pairs.js reads that shape, and also a flat even-length list; any other return
-  shape makes it exit 2, so update pairs.js in the same change.
-- The full-seed eligible drive writes about 51 MB of `output.json` and runs in about two
-  seconds while the scheduler emits every combination. pairs.js prints only the first 20
-  invalid pairs and stores at most 1000 in `pairs.json` for runs over 200 options.
+- As of 2026-10-14 (after README Task 1 landed) every journey here passes on both seeds:
+  the small seed gives exactly the README's 11 options in README order, the full seed
+  gives 37,165 options, and pairs.js reports 0 invalid on both.
+- The output is an array of clinician groups, so `count` is the number of clinicians with
+  options, not the number of options. Read `pairs.json` for the option count. pairs.js
+  reads the grouped shape (and the older tuple and flat shapes); any other return shape
+  makes it exit 2, so update pairs.js in the same change.
+- Only psychologists appear. A therapist in the patient's state with their insurance is
+  excluded by `clinicianType`, not by slot length.
+- The full-seed eligible drive writes about 22 MB of `output.json` and runs in about two
+  seconds. pairs.js prints only the first 20 invalid pairs and stores at most 1000 in
+  `pairs.json` for runs over 200 options.
 - The miss journeys would pass against an empty result too. Run `assess-eligible` first
   and only count the misses as verified when it passed in the same run.
 - Only the six small-set slots are seeded. The README's full 11-pair example list assumes
