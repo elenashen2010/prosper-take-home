@@ -36,7 +36,7 @@ For example, `SEED_SLOTS=full SEED_APPOINTMENTS=busy npm run dev` runs the full 
 
 The prompt leaves these open. Each lives in one constant or table, so changing it is one edit.
 
-- A day is the clinician's calendar day in their own IANA time zone, not the UTC day. Clinicians carry a `timezone` column for this.
+- A day is the clinician's calendar day in their own IANA time zone, not the UTC day. Clinicians carry a new `timezone` column for this.
 - Weeks start on Monday (`WEEK_STARTS_ON`).
 - `UPCOMING`, `OCCURRED`, and `NO_SHOW` appointments hold the clinician's time. `RE_SCHEDULED`, `CANCELLED`, and `LATE_CANCELLATION` free it (`HOLDS_CLINICIAN_TIME`).
 - A held appointment blocks 90 minutes for assessments and 60 for therapy, whatever the slot length.
@@ -63,6 +63,16 @@ There are two layers.
 - **Scenario data.** The roster is a dataset where each clinician exists to break one rule if the scheduler regresses. It spans six US time zones, the November daylight-saving change, ladders, full days and weeks, and every appointment status. Each roster patient carries the exact groups they must be offered, and `src/roster.test.ts` checks every one. 159 generated near-miss clinicians each match some patient on two of type, state, and insurance, so dropping any eligibility filter adds groups and fails a test.
 
 A verification harness in `.agents/skills/verify-scheduler/` runs the real scheduler and checks its output with independent re-implementations of each rule. `node .agents/skills/verify-scheduler/scripts/sweep.js --run <id>` drives every roster patient and runs all three checkers on each result. Its `SKILL.md` has the details.
+
+## Process
+
+I built this with Claude Code and [pstack](https://github.com/backnotprop/pstack), a set of agent skills installed under `.agents/skills/`.
+
+- **Mode.** Most tasks ran under pstack's `/poteto-mode`. It matches the task to a playbook such as Feature or Refactoring and applies a set of engineering principles. Examples are "test behavior, not implementation" and "prove it works against the real artifact".
+- **Design.** For larger changes, such as the roster dataset, the `architect` and `arena` skills had two models sketch competing designs. A third model judged them, and the final design took the best parts of each.
+- **Verification.** `create-verification-skill` generated the `verify-scheduler` harness, and `/maintain-verification-skill` kept it in step with the code. After each task, an agent drove the real scheduler through the harness instead of trusting passing unit tests.
+- **Mock ORM first.** Before any scheduling logic, I had pstack build the mock repositories. Each method had to be expressible in SQL, so the business logic was written against a realistic data layer from the start.
+- **Manual review.** I read every diff before committing, and committed one checkpoint per task so each step can be reviewed on its own in the history. I steered design calls the agents surfaced, such as the clinician time zone column, and checked outputs against the worked example in [ASSIGNMENT.md](ASSIGNMENT.md).
 
 ## Limitations
 
