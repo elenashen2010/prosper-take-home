@@ -27,8 +27,13 @@ Read this index before driving, then use the matching feature file as the recipe
   - `none` (default): no appointments, the README example's empty calendar.
   - `busy`: 11 rows in the week of 2024-08-19, 7 of which hold her time.
     `features/clinician-capacity.md` lists them.
-  `summary.json` records both sets. drive.js appends `-<seed>` to its default label for a
-  seed other than `small`, and `-busy` for the busy set.
+- Who sits beside her comes from one of two sets, picked by `--clinicians` on drive.js and
+  doctor.js (`SEED_CLINICIANS` for `npm run dev`):
+  - `doe` (default): nobody. Every recipe except the roster uses it.
+  - `roster`: 16 named clinicians, 159 near-miss clinicians, and 9 patients from
+    `src/starter-code/mock-roster.ts`, after Dr. Doe's rows. `features/roster.md` drives it.
+  `summary.json` records all three sets. drive.js appends `-<seed>` to its default label for a
+  seed other than `small`, `-busy` for the busy set, and `-roster` for the roster.
 - A verification run covers the small and full seeds. Run every recipe with the default
   seed and again with `--seed full`, using a distinct `--label` per seed, unless the
   feature file marks a step as seed-independent or names the one seed it needs. The
@@ -47,8 +52,8 @@ Read this index before driving, then use the matching feature file as the recipe
   `slotDatesFound` is twice the number of options, and `byClinician` counts option slots
   per clinician. `scripts/pairs.js` checks the pairing rule over that output, judging each
   slot's day in the group's `timezone`; a group without one is exit 2.
-  `scripts/optimized.js` and `scripts/capacity.js` read the seed and appointment sets from
-  `summary.json`, so run them on the drive's own evidence directory.
+  `scripts/optimized.js` and `scripts/capacity.js` read the seed, appointment, and clinician
+  sets from `summary.json`, so run them on the drive's own evidence directory.
 - Run the eligible-patient journey before any miss journey, so a "returns nothing"
   expectation is read next to a known non-empty result.
 - Inspect `output.json` when a recipe asks for a by-hand check; `summary.json` is
@@ -85,4 +90,7 @@ and `Gotchas`.
   existing appointments (README Task 3). It needs `--appointments busy`;
   `scripts/capacity.js` checks every option and offered day.
 - [Therapy intake](./therapy-intake.md) covers 60-minute intake slots with therapists
-  (README scenario). Blocked on seed data and API today.
+  (README scenario). Blocked on the API today, and on seed data under `doe`.
+- [Roster](./roster.md) covers many patients and clinicians across states, insurers, and
+  time zones, each scenario with its literal expected groups. It needs `--clinicians roster`;
+  `scripts/sweep.js` drives every scenario and runs the three oracles on each.

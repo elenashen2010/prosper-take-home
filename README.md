@@ -356,3 +356,21 @@ In general, I recommend having the minimal possible scaffolding for the project:
 The business logic is the main purpose of the challenge 😎
 
 </aside>
+
+# Running the scheduler on the roster
+
+`npm run dev` runs the README example: Byrne Hollander against Dr. Doe. To run nine more patients against 175 more clinicians, set `SEED_CLINICIANS=roster`:
+
+```
+SEED_CLINICIANS=roster npm run dev
+```
+
+It prints Byrne Hollander first and then each roster patient. The roster lives in `src/starter-code/mock-roster.ts`. Each clinician row there has a one-line comment that names the rule it tests, and each scenario holds its patient and the exact groups that patient must be offered. `src/roster.ts` turns the rows into the four EHR tables.
+
+`npm test` checks every scenario through the seeded repositories in `src/roster.test.ts`. To drive every scenario and run the harness's independent checks on each result, run:
+
+```
+node .agents/skills/verify-scheduler/scripts/sweep.js --run <run-id>
+```
+
+`.agents/skills/verify-scheduler/features/roster.md` lists the scenarios and the command for each one.

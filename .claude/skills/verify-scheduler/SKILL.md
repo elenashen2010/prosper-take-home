@@ -70,8 +70,20 @@ Seed data an agent can rely on (verified 2026-10-14):
     36,515, and the midnight seed no groups (New York 08-19 and 08-20 are full, the week
     holds 7 of 8, and 08-27 has no partner left). The capacity proof.
   Any other `SEED_APPOINTMENTS` value makes the app throw at load, like `SEED_SLOTS`.
-- No 60-minute slots in any set. Therapy journeys are blocked on seed preconditions; see
-  the feature map.
+- Two clinician sets, selected by the `SEED_CLINICIANS` environment variable, which
+  `src/mockSlotOrm.ts` reads when it loads. Each adds rows after Dr. Doe's in all three
+  repositories, so her rows still follow `SEED_SLOTS` and `SEED_APPOINTMENTS`.
+  - `doe` (default): nobody. Every result above assumes it.
+  - `roster`: `src/starter-code/mock-roster.ts`. 16 named clinicians, one per edge case
+    (6 zones, 2 therapists, 16 appointments of which 12 hold time), then 159 near-miss
+    clinicians derived from the patients, then 9 scenario patients, each with its literal
+    expected groups. No roster patient shares a state and insurance with Dr. Doe, and no
+    roster or crowd psychologist is eligible for Byrne Hollander. So every roster answer is
+    the same under all six of Dr. Doe's seed combinations, and Byrne still sees only her.
+    `npm run dev` prints all ten patients. `features/roster.md` drives it.
+  Any other `SEED_CLINICIANS` value makes the app throw at load, like `SEED_SLOTS`.
+- No 60-minute slots in any of Dr. Doe's sets. The roster has 25. Therapy journeys are
+  blocked on the API, and under `doe` also on seed data; see the feature map.
 
 Isolation: every drive is a fresh process reading in-memory data, so concurrent drives
 cannot interfere. Give each verification run its own `--run <id>` so evidence does not mix.
@@ -85,12 +97,15 @@ node .agents/skills/verify-scheduler/scripts/doctor.js
 Read-only. Confirms repo root, node >= 18, dependencies installed, a clean full
 `tsc --noEmit`, that `findAvailableSlots` is exported, and that the seed patient and
 clinician load, with slot counts and lengths. It reports the appointment count, how many
-hold time, and the set (`11 appointments (busy), 7 hold the clinician's time`), and checks
-that `clinician.appointments` has the same ids as the appointment repository. Warns (not
-fails) when the seed lacks 60-minute slots, or has no appointments under `none`; fails when
-`busy` yields no rows. Exit 0 = READY, exit 1 = do not drive. Add `--seed full` to check
-the full dump and `--appointments busy` to check the busy calendar (the report names
-both), and `--out <file.json>` to keep the report as evidence. Run it first whenever
+hold time, and the set (`11 appointments (busy), 7 hold the clinician's time`). The
+`clinician roster` check reports the clinician set, the clinicians by type, their zones, the
+60-minute slots over all slots, the appointments and how many hold time, and the patient
+count. It checks that every clinician's `appointments` has the same ids as the appointment
+repository. Warns (not fails) when no slot in the table is 60 minutes, or Dr. Doe has no
+appointments under `none`; fails when `busy` yields no rows. Exit 0 = READY, exit 1 = do not
+drive. Add `--seed full` to check the full dump, `--appointments busy` to check the busy
+calendar, and `--clinicians roster` to check the roster (the report names all three), and
+`--out <file.json>` to keep the report as evidence. Run it first whenever
 anything looks off, and again after any failed drive.
 
 ## Drive
@@ -104,8 +119,9 @@ the same path `npm run dev` takes. The patient defaults to the seed patient; ove
 `--state`, `--insurance`, `--first`, `--last`, `--patient-id`. Values are validated against
 the repo's `UsStateAbbreviations` and `InsurancePayers`. `--seed small|full|midnight`
 (default small) sets `SEED_SLOTS` before the app loads, exactly as `SEED_SLOTS=full npm run dev`
-would. `--appointments none|busy` (default none) sets `SEED_APPOINTMENTS` the same way. Both
-are recorded in `summary.json` and appended to the default label when not the default.
+would. `--appointments none|busy` (default none) sets `SEED_APPOINTMENTS` and
+`--clinicians doe|roster` (default doe) sets `SEED_CLINICIANS` the same way. All three are
+recorded in `summary.json` and appended to the default label when not the default.
 
 Expectations turn the drive into a pass/fail step:
 
@@ -177,6 +193,19 @@ differs from the repository's, no `summary.appointments`, or an unknown status o
 Under `none` it prints `vacuous: 0 held` and exits 0. Writes `capacity.json` with the zone,
 maximums, held and freed rows, held counts per day and week, and every problem.
 
+```
+node .agents/skills/verify-scheduler/scripts/sweep.js --run <run-id> [--seed small|full|midnight] [--appointments none|busy]
+```
+
+Drives every roster scenario and the README patient through drive.js with
+`--clinicians roster`, labels `<key>[-<seed>][-<appointments>]` under
+`.verify-evidence/<run-id>/roster/`. A scenario passes `exact` when its output, mapped to
+`[rosterKey, [first, second][]]` groups, equals the scenario's expected groups. The `byrne`
+row passes `doe-only` when every group is Dr. Doe's. It then runs pairs.js, optimized.js, and
+capacity.js on each evidence directory, prints one line per row, and writes
+`sweep[-<seed>][-<appointments>].json` next to them. Exit 0 when every cell passed, 1 when an
+expectation or oracle failed, 2 when a drive could not run.
+
 Feature recipes live in [features/README.md](features/README.md). Drive the feature's
 listed entry points, not just the convenient one.
 
@@ -231,12 +260,13 @@ Git Bash, and POSIX shells alike. Paths are relative to the repo root.
 
 | Script | Invocation | Purpose |
 | --- | --- | --- |
-| doctor | `node .agents/skills/verify-scheduler/scripts/doctor.js [--seed small\|full\|midnight] [--appointments none\|busy] [--out <file>]` | Read-only readiness check; reports the seed clinician's time zone and appointments |
-| drive | `node .agents/skills/verify-scheduler/scripts/drive.js --feature <id> --run <id> [--seed small\|full\|midnight] [--appointments none\|busy] [...]` | Run the scheduler for a patient on one seed and appointment set, write evidence, assert expectations |
+| doctor | `node .agents/skills/verify-scheduler/scripts/doctor.js [--seed small\|full\|midnight] [--appointments none\|busy] [--clinicians doe\|roster] [--out <file>]` | Read-only readiness check; reports the seed clinician's time zone and appointments, and the clinician set |
+| drive | `node .agents/skills/verify-scheduler/scripts/drive.js --feature <id> --run <id> [--seed small\|full\|midnight] [--appointments none\|busy] [--clinicians doe\|roster] [...]` | Run the scheduler for a patient on one seed, appointment, and clinician set, write evidence, assert expectations |
 | cleanup | `node .agents/skills/verify-scheduler/scripts/cleanup.js --run <id> [--remove-dist]` | Confirm evidence survived; remove `dist/` on request |
 | pairs | `node .agents/skills/verify-scheduler/scripts/pairs.js <evidence-dir> [--max-gap-days 7]` | Check every option in a drive's output against the pairing rule, with days judged in the group's `clinician.timezone` |
 | optimized | `node .agents/skills/verify-scheduler/scripts/optimized.js <evidence-dir>` | Check every offered local day against the Task 2 rule, capped by the day's room, with an independent implementation, and the group's zone against the clinician repository |
 | capacity | `node .agents/skills/verify-scheduler/scripts/capacity.js <evidence-dir>` | Check every option and offered day against the Task 3 rules (overlap, daily, weekly, pair closure, day completeness) with the harness's own tables |
+| sweep | `node .agents/skills/verify-scheduler/scripts/sweep.js --run <id> [--seed small\|full\|midnight] [--appointments none\|busy]` | Drive every roster scenario and the README patient, compare each with its literal expected groups, and run pairs, optimized, and capacity on each |
 
 `.claude/skills/verify-scheduler` is a directory junction to `.agents/skills/verify-scheduler`
 (the other skills in this repo are symlinks; creating a symlink needs admin rights on this
@@ -260,6 +290,7 @@ node .agents/skills/verify-scheduler/scripts/capacity.js .verify-evidence/$RUN/c
 node .agents/skills/verify-scheduler/scripts/optimized.js .verify-evidence/$RUN/clinician-capacity/cap-busy
 node .agents/skills/verify-scheduler/scripts/drive.js --feature clinician-capacity --run $RUN --seed full --appointments busy --label cap-daily-full --expect-absent 2024-08-19T12:00:00.000Z,2024-08-21T15:00:00.000Z --expect-contains 2024-08-21T12:00:00.000Z,2024-08-26T13:30:00.000Z
 node .agents/skills/verify-scheduler/scripts/capacity.js .verify-evidence/$RUN/clinician-capacity/cap-daily-full
+node .agents/skills/verify-scheduler/scripts/sweep.js --run $RUN
 node .agents/skills/verify-scheduler/scripts/cleanup.js --run $RUN
 ```
 
@@ -290,6 +321,17 @@ named `overlap`. Adding `2024-08-19T12:00Z` + `2024-08-21T12:00Z` named `daily` 
 `weekly-pair`, and optimized.js exit 1 with `no room`. Deleting `2024-08-22T15:00Z` +
 `2024-08-28T12:15Z` gave a completeness miss for 08-22, and deleting
 `2024-08-21T12:00Z` + `2024-08-26T13:30Z` from a copy of `cap-daily-full` gave a closure
-miss. Cleanup kept all 65 evidence files. Earlier proofs: 2026-10-14 after Tasks 1 and 2
+miss. Cleanup kept all 65 evidence files.
+
+Proven 2026-10-14 after the roster seed landed (runs `roster-20261014-123524` and
+`minpass-20261014-123641`). Doctor with `--clinicians roster` was READY with 176 clinicians
+(164 psychologists, 12 therapists), six zones, `25 of 391` sixty-minute slots, `16, 12 hold
+time`, 10 patients, and `same 16 ids over 176 clinicians`. `sweep.js` exited 0 with all 10
+rows `ok` on every oracle. The scenarios gave 0, 0, 0, 4, 2, 7, 9, 2, and 8 options, and
+`byrne` gave Dr. Doe's 11. With `--seed full --appointments busy` it exited 0 with the same
+scenario counts and `byrne` at 36,515. On a copy of the `ga-united` evidence, adding Malik's
+`2024-09-11T14:00Z` + `2024-09-12T14:00Z` made capacity.js exit 1 with `daily`. The minimal
+full pass above reproduced 11, 37,110, 8, 2, and 36,515 under `doe`, its sweep line exited 0
+with all 10 rows ok, and cleanup kept 100 evidence files. Earlier proofs: 2026-10-14 after Tasks 1 and 2
 and the time zone column (9,999 full-seed options, before the cap), 2026-10-13 against the
 starter stub (count 0).

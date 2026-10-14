@@ -38,10 +38,15 @@ Preconditions:
 
 ## Gotchas
 
-- Blocked as of 2026-10-14 on two counts: every seeded slot is 90 minutes and the only
-  seeded clinician is a psychologist (Doctor warns "no 60-minute slots"), and neither
-  `Patient` nor `findAvailableSlots` has a field for the requested service. Report
-  `blocked` with both reasons.
+- Blocked as of 2026-10-14 on two counts under `--clinicians doe`: every seeded slot is 90
+  minutes and the only seeded clinician is a psychologist (Doctor warns "no 60-minute
+  slots"), and neither `Patient` nor `findAvailableSlots` has a field for the requested
+  service. Report `blocked` with both reasons.
+- Under `--clinicians roster` the seed precondition is met. Doctor reports 25 sixty-minute
+  slots and no warning. The therapists are Chen (TX, BCBS), Evans (OR and WA, UNITED), and ten
+  near-miss crowd therapists, one per patient's state and insurance. The crowd therapist
+  `c0de0000-0000-4000-8000-000000000001` covers `NY` and accepts `AETNA`. The journey stays
+  blocked on the API alone. Report `blocked` with that one reason.
 - The scheduler today applies the assessment pairing to every eligible clinician, so even
   with a therapist seeded, `therapy-single` would fail until the scheduler branches on
   clinician type or requested service.
