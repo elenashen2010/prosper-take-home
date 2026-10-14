@@ -92,9 +92,11 @@ function localDayByOffset(iso, zone) {
 function applySeedEnv(args) {
   const seed = args.seed || "small";
   const appointments = args.appointments || "none";
+  const clinicians = args.clinicians || "doe";
   process.env.SEED_SLOTS = seed;
   process.env.SEED_APPOINTMENTS = appointments;
-  return { seed, appointments };
+  process.env.SEED_CLINICIANS = clinicians;
+  return { seed, appointments, clinicians };
 }
 
 const HARNESS_WEEK_STARTS_ON = 1;

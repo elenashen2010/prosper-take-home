@@ -6,11 +6,12 @@
  *
  * Usage:
  *   node .agents/skills/verify-scheduler/scripts/doctor.js [--seed small|full|midnight] [--appointments none|busy]
- *        [--out <file.json>]
+ *        [--clinicians doe|roster] [--out <file.json>]
  *
  * Checks toolchain, dependencies, a full type-check, the scheduler export, and the seed data.
- * --seed (default small) sets SEED_SLOTS and --appointments (default none) sets SEED_APPOINTMENTS so the seed
- * checks describe the sets a drive will use; an unknown value of either fails the scheduler export check.
+ * --seed (default small) sets SEED_SLOTS, --appointments (default none) sets SEED_APPOINTMENTS, and --clinicians
+ * (default doe) sets SEED_CLINICIANS so the seed checks describe the sets a drive will use; an unknown value of
+ * any fails the scheduler export check.
  * Exit 0 when every check is ok or warn; exit 1 when any check fails.
  * The only thing it writes is the optional --out report.
  */
@@ -20,7 +21,7 @@ const { spawnSync } = require("child_process");
 const { findRepoRoot, parseArgs, registerTsNode, applySeedEnv, HARNESS_HELD_STATUSES } = require("./common");
 
 const args = parseArgs(process.argv.slice(2));
-const { seed, appointments } = applySeedEnv(args);
+const { seed, appointments, clinicians } = applySeedEnv(args);
 const checks = [];
 function run(name, fn) {
   try {
@@ -121,8 +122,53 @@ run("seed clinician", () => {
   };
 });
 
+// Every clinician the repository holds: the union of its one query over every type, state, and insurance.
+function allClinicians() {
+  const { clinicianRepository } = require(path.join(root, "src", "mockClinicianOrm"));
+  const { ClinicianTypes } = require(path.join(root, "src", "starter-code", "clinician"));
+  const { UsStateAbbreviations } = require(path.join(root, "src", "starter-code", "us-states"));
+  const { InsurancePayers } = require(path.join(root, "src", "starter-code", "payer"));
+  const byId = new Map();
+  for (const clinicianType of ClinicianTypes) {
+    for (const state of UsStateAbbreviations) {
+      for (const insurance of InsurancePayers) {
+        for (const c of clinicianRepository.findByTypeStateAndInsurance({ clinicianType, state, insurance })) byId.set(c.id, c);
+      }
+    }
+  }
+  return [...byId.values()];
+}
+
+function allSlots() {
+  const { slotRepository } = require(path.join(root, "src", "mockSlotOrm"));
+  return allClinicians().flatMap((c) => slotRepository.findByClinician(c.id));
+}
+
+run("clinician roster", () => {
+  const everyone = allClinicians();
+  const { appointmentRepository } = require(path.join(root, "src", "mockAppointmentOrm"));
+  const { seededRoster } = require(path.join(root, "src", "mockSlotOrm"));
+  const byType = {};
+  for (const c of everyone) byType[c.clinicianType] = (byType[c.clinicianType] || 0) + 1;
+  const zones = [...new Set(everyone.map((c) => c.timezone))].sort();
+  const slots = allSlots();
+  const rows = everyone.flatMap((c) => appointmentRepository.findByClinician(c.id));
+  const held = rows.filter((a) => HARNESS_HELD_STATUSES.includes(a.status)).length;
+  return {
+    detail: {
+      set: clinicians,
+      clinicians: everyone.length,
+      byType,
+      zones,
+      sixtyMinuteSlots: `${slots.filter((s) => s.length === 60).length} of ${slots.length}`,
+      appointments: `${rows.length}, ${held} hold time`,
+      patients: 1 + seededRoster.patients.length,
+    },
+  };
+});
+
 run("seed covers therapy (60-minute slots)", () => {
-  const sixty = seedClinician().availableSlots.filter((s) => s.length === 60).length;
+  const sixty = allSlots().filter((s) => s.length === 60).length;
   if (sixty === 0) {
     return { warn: true, detail: "no 60-minute slots in seed data - therapy-intake journeys are blocked" };
   }
@@ -140,14 +186,18 @@ run("seed covers capacity (existing appointments)", () => {
 });
 
 run("clinician.appointments matches repository", () => {
-  const clinician = seedClinician();
   const { appointmentRepository } = require(path.join(root, "src", "mockAppointmentOrm"));
-  const embedded = (clinician.appointments || []).map((a) => a.id);
-  const queried = appointmentRepository.findByClinician(clinician.id).map((a) => a.id);
-  if (JSON.stringify(embedded) !== JSON.stringify(queried)) {
-    throw new Error(`clinician.appointments ${JSON.stringify(embedded)} != findByClinician ${JSON.stringify(queried)}`);
+  const everyone = allClinicians();
+  let ids = 0;
+  for (const clinician of everyone) {
+    const embedded = (clinician.appointments || []).map((a) => a.id);
+    const queried = appointmentRepository.findByClinician(clinician.id).map((a) => a.id);
+    if (JSON.stringify(embedded) !== JSON.stringify(queried)) {
+      throw new Error(`${clinician.id}: clinician.appointments ${JSON.stringify(embedded)} != findByClinician ${JSON.stringify(queried)}`);
+    }
+    ids += queried.length;
   }
-  return `same ${queried.length} ids`;
+  return `same ${ids} ids over ${everyone.length} clinicians`;
 });
 
 run("instance ownership", () => "short-lived CLI: no server, no port, no background process to own");
@@ -167,7 +217,7 @@ function report() {
   if (args.out) {
     const out = path.resolve(args.out);
     fs.mkdirSync(path.dirname(out), { recursive: true });
-    fs.writeFileSync(out, JSON.stringify({ checkedAt: new Date().toISOString(), root, seed, appointments, checks }, null, 2));
+    fs.writeFileSync(out, JSON.stringify({ checkedAt: new Date().toISOString(), root, seed, appointments, clinicians, checks }, null, 2));
     console.log(`report: ${out}`);
   }
 }

@@ -60,7 +60,7 @@ if (!summary.patient || !summary.patient.state || !summary.patient.insurance) {
   process.exit(2);
 }
 
-const { seed, appointments } = applySeedEnv({ seed: summary.seed, appointments: summary.appointments });
+const { seed, appointments } = applySeedEnv({ seed: summary.seed, appointments: summary.appointments, clinicians: summary.clinicians });
 const root = findRepoRoot(__dirname);
 registerTsNode(root, { transpileOnly: true });
 const { slotRepository } = require(path.join(root, "src", "mockSlotOrm"));

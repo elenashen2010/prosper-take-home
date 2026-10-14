@@ -67,7 +67,7 @@ for (const g of output) {
 if (typeof summary.appointments !== "string") notCheckable("summary.json has no appointments set; re-drive with this drive.js");
 if (!summary.patient || !summary.patient.state || !summary.patient.insurance) notCheckable("summary.json has no patient with state and insurance");
 
-const { seed, appointments } = applySeedEnv({ seed: summary.seed, appointments: summary.appointments });
+const { seed, appointments } = applySeedEnv({ seed: summary.seed, appointments: summary.appointments, clinicians: summary.clinicians });
 const root = findRepoRoot(__dirname);
 registerTsNode(root, { transpileOnly: true });
 const { slotRepository } = require(path.join(root, "src", "mockSlotOrm"));
