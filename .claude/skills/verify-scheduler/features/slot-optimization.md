@@ -2,22 +2,23 @@
 
 When a clinician's availability is a ladder of overlapping start times (12:00, 12:15,
 12:30 ... for 90-minute sessions), the patient only sees the start times that keep the
-day's bookable appointment count at its maximum, so booking any offered slot never
-costs the clinician a session. A start is offered exactly when some maximum set of
-non-overlapping sessions includes it.
+day's target number of sessions reachable, so booking any offered slot never costs the
+clinician a session. The target is the most non-overlapping sessions the day's free slots
+can hold, capped by the clinician's room that day (README Task 3). A start is offered
+exactly when some set of non-overlapping sessions through it reaches the target.
 
 ## Sub-features
 
-- `opt-ladder` reduces the README's 15-minute ladder of 90-minute slots to the starts that preserve the day's maximum.
+- `opt-ladder` reduces a 15-minute ladder of 90-minute slots to the starts that keep the day's target reachable.
 - `opt-short-block` keeps a run of starts too short for two sessions whole, so the patient sees every start that costs nothing.
 - `opt-independent` leaves slots that overlap nothing untouched.
-- `opt-every-day` applies the rule to every offered day of every clinician, with days taken on the clinician's own calendar (`clinician.timezone`).
+- `opt-every-day` applies the rule to every offered day of every clinician, with days taken on the clinician's own calendar (`clinician.timezone`) and the target capped by that day's room.
 
 ## How to get to it (user POV)
 
 - Run `npm run dev` and look at which start times appear for a single day.
 - Call `findAvailableSlots(patient)` and inspect one day's dates.
-- Call `filterForMaxAppointments(dates, durationMinutes)` from `src/maxAppointments.ts` with any list of starts.
+- Call `filterForMaxAppointments(dates, durationMinutes, maxAppointments)` from `src/maxAppointments.ts` with any list of starts. Without the third argument it applies the uncapped README rule.
 
 ## Driving it with drive.js
 
@@ -40,14 +41,19 @@ Preconditions:
   Exit 0: both starts are offered; 12:00 ends at 13:30, before 15:00.
 - **Ladder collapse.** Ask for the options on the full dump and check 2024-09-03 and
   2024-08-22. Run
-  `node .agents/skills/verify-scheduler/scripts/drive.js --feature slot-optimization --run $RUN --seed full --label opt-ladder --expect-min 1 --expect-contains 2024-09-03T21:00:00.000Z,2024-09-03T22:30:00.000Z,2024-09-03T12:15:00.000Z,2024-08-22T12:15:00.000Z --expect-absent 2024-09-03T21:15:00.000Z,2024-09-03T21:30:00.000Z,2024-09-03T21:45:00.000Z,2024-09-03T22:00:00.000Z,2024-09-03T22:15:00.000Z,2024-08-22T13:15:00.000Z`.
-  Exit 0: the ladder's two survivors are offered and its five inner starts are not; the
-  short 12:00 block on 2024-09-03 is kept whole; on the 11-step ladder only 13:15 is hidden.
+  `node .agents/skills/verify-scheduler/scripts/drive.js --feature slot-optimization --run $RUN --seed full --label opt-ladder --expect-min 1 --expect-contains 2024-09-03T21:00:00.000Z,2024-09-03T21:15:00.000Z,2024-09-03T22:15:00.000Z,2024-09-03T22:30:00.000Z,2024-08-22T12:15:00.000Z --expect-absent 2024-08-22T13:15:00.000Z`.
+  Exit 0. Dr. Doe takes at most 2 sessions a day, so the target is 2 on every full-seed
+  day that fits two sessions. On 2024-09-03 every ladder start fits in a chain of 2 with a start of the 12:00
+  block, so all ten starts stay. On the 11-step ladder of 2024-08-22 only 13:15 is hidden,
+  because no other start fits before or after it. The README's own ladder, where only 12:00 and 13:30 survive, needs a
+  day whose longest chain is the cap. `src/maxAppointments.test.ts` covers it.
 - **Every offered day.** Check the whole full-seed drive against the rule with an
   independent implementation. Run
   `node .agents/skills/verify-scheduler/scripts/optimized.js .verify-evidence/$RUN/slot-optimization/opt-ladder`.
-  Exit 0 and `failing: 0` over 27 offered days; `optimized.json` lists each day's expected
-  keep count and `timezone`. Run it on the small-seed drive too (4 days, all ok) and on the
+  Exit 0 and `failing: 0` over 27 offered days; `optimized.json` lists each day's held
+  count, room, target, expected keep count, and `timezone`. optimized.js reads the
+  appointment set from `summary.json`, so it also checks the busy drives in
+  `clinician-capacity.md`. Run it on the small-seed drive too (4 days, all ok) and on the
   `assess-midnight` drive from the assessment-slots recipe
   (`node .agents/skills/verify-scheduler/scripts/optimized.js .verify-evidence/$RUN/assessment-slots/assess-midnight`):
   exit 0 over 3 offered New York days, where the `03:00Z` and `03:15Z` starts share the
@@ -68,7 +74,10 @@ Preconditions:
   pairing. A slot at 22:30 local ends at 00:00 the next day and is still a slot of the day
   it starts. A ladder that crosses UTC midnight inside one New York evening is one day's
   ladder (`src/schedulerApi.test.ts` covers it).
-- Expected full-seed numbers under the rule: 246 of 458 starts kept, 9,999 assessment
-  options (down from 37,165 unoptimized). A different count is a finding.
+- Expected full-seed numbers with no appointments: 457 of 458 starts kept and 37,110
+  assessment options. The uncapped README rule gave 246 starts and 9,999 options, and no
+  optimization gives 37,165. The cap changed the count. With room for 2 sessions, any start
+  inside a chain of 2 is harmless to offer, even when the day could pack 7. A different
+  count is a finding.
 - The output is an array of clinician groups with `{ first, second }` options; a hidden
   slot must not appear in any option.

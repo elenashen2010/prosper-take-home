@@ -48,3 +48,25 @@ export function localDayOf(instant: Date, zone: TimeZone): LocalDay {
 export function daysBetween(from: LocalDay, to: LocalDay): number {
   return (Date.parse(to) - Date.parse(from)) / 86_400_000;
 }
+
+/** Date#getUTCDay numbering: 0 is Sunday, 1 is Monday. */
+export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+/** The day every clinician's week starts on. ISO 8601 Monday, since the README does not say. A Sunday start is 0. */
+export const WEEK_STARTS_ON: Weekday = 1;
+
+/**
+ * A week on one clinician's calendar, named by its first day "YYYY-MM-DD". Branded apart from LocalDay so a
+ * day count can never be looked up by a week key or the reverse. Only weekOf makes one.
+ */
+export type LocalWeek = string & { readonly __brand: "LocalWeek" };
+
+/**
+ * The week `day` belongs to. Label arithmetic, no zone: weekOf("2024-08-25") is "2024-08-19" and
+ * weekOf("2025-01-01") is "2024-12-30".
+ */
+export function weekOf(day: LocalDay): LocalWeek {
+  const first = new Date(Date.parse(day));
+  first.setUTCDate(first.getUTCDate() - ((first.getUTCDay() - WEEK_STARTS_ON + 7) % 7));
+  return first.toISOString().slice(0, 10) as LocalWeek;
+}

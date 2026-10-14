@@ -1,4 +1,4 @@
-import { daysBetween, LocalDay, localDayOf, parseTimeZone, TimeZone } from "./localDay";
+import { daysBetween, LocalDay, localDayOf, LocalWeek, parseTimeZone, TimeZone, weekOf } from "./localDay";
 
 const NEW_YORK = parseTimeZone("America/New_York");
 const at = (iso: string) => new Date(iso);
@@ -83,5 +83,44 @@ describe("daysBetween", () => {
     const to = day("2024-11-04T04:30:00.000Z");
     expect([from, to]).toEqual(["2024-10-27", "2024-11-03"]);
     expect(daysBetween(from, to)).toBe(7);
+  });
+});
+
+describe("weekOf", () => {
+  const day = (ymd: string) => localDayOf(at(`${ymd}T12:00:00.000Z`), NEW_YORK);
+
+  it("names a Monday-to-Sunday week by its Monday", () => {
+    expect(weekOf(day("2024-08-19"))).toBe("2024-08-19");
+    expect(weekOf(day("2024-08-21"))).toBe("2024-08-19");
+    expect(weekOf(day("2024-08-25"))).toBe("2024-08-19");
+  });
+
+  it("starts a new week on Monday", () => {
+    expect(weekOf(day("2024-08-26"))).toBe("2024-08-26");
+    expect(weekOf(day("2024-09-01"))).toBe("2024-08-26");
+  });
+
+  it("crosses a year boundary", () => {
+    expect(weekOf(day("2025-01-01"))).toBe("2024-12-30");
+  });
+
+  it("is label arithmetic across the fall-back day", () => {
+    expect(weekOf(day("2024-11-03"))).toBe("2024-10-28");
+    expect(weekOf(day("2024-11-04"))).toBe("2024-11-04");
+  });
+
+  it("rejects a LocalDay as a LocalWeek and the reverse at compile time", () => {
+    const typeChecksOnly = () => {
+      // @ts-expect-error a LocalDay is not a LocalWeek
+      const week: LocalWeek = day("2024-08-19");
+      // @ts-expect-error a LocalWeek is not a LocalDay
+      const asDay: LocalDay = weekOf(day("2024-08-19"));
+      // @ts-expect-error a plain string is not a LocalWeek
+      const plain: LocalWeek = "2024-08-19";
+      void week;
+      void asDay;
+      void plain;
+    };
+    expect(typeof typeChecksOnly).toBe("function");
   });
 });

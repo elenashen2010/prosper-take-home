@@ -88,4 +88,65 @@ function localDayByOffset(iso, zone) {
   return new Date(instant.getTime() + minutes * 60000).toISOString().slice(0, 10);
 }
 
-module.exports = { findRepoRoot, parseArgs, defaultRunId, evidenceRoot, registerTsNode, toPlain, localDayByOffset };
+// Sets the seed variables the app reads when its seed modules load, so call it before the first require of src/.
+function applySeedEnv(args) {
+  const seed = args.seed || "small";
+  const appointments = args.appointments || "none";
+  process.env.SEED_SLOTS = seed;
+  process.env.SEED_APPOINTMENTS = appointments;
+  return { seed, appointments };
+}
+
+const HARNESS_WEEK_STARTS_ON = 1;
+const HARNESS_HELD_STATUSES = ["UPCOMING", "OCCURRED", "NO_SHOW"];
+const HARNESS_FREED_STATUSES = ["RE_SCHEDULED", "CANCELLED", "LATE_CANCELLATION"];
+const HARNESS_SESSION_MINUTES = { ASSESSMENT_SESSION_1: 90, ASSESSMENT_SESSION_2: 90, THERAPY_INTAKE: 60, THERAPY_SIXTY_MINS: 60 };
+
+function weekByOffset(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  const midnight = Date.UTC(y, m - 1, d);
+  const back = (new Date(midnight).getUTCDay() - HARNESS_WEEK_STARTS_ON + 7) % 7;
+  return new Date(midnight - back * 86400000).toISOString().slice(0, 10);
+}
+
+class NotCheckable extends Error {}
+
+function heldModel(rows, zone) {
+  const held = [];
+  const freed = [];
+  const heldDay = {};
+  const heldWeek = {};
+  for (const row of rows) {
+    const iso = new Date(row.scheduledFor).toISOString();
+    if (!(row.appointmentType in HARNESS_SESSION_MINUTES)) throw new NotCheckable(`appointment ${row.id} has unknown type ${row.appointmentType}`);
+    const entry = { id: row.id, scheduledFor: iso, appointmentType: row.appointmentType, status: row.status };
+    if (HARNESS_FREED_STATUSES.includes(row.status)) {
+      freed.push(entry);
+      continue;
+    }
+    if (!HARNESS_HELD_STATUSES.includes(row.status)) throw new NotCheckable(`appointment ${row.id} has unknown status ${row.status}`);
+    const start = Date.parse(iso);
+    const day = localDayByOffset(iso, zone);
+    const week = weekByOffset(day);
+    held.push({ ...entry, start, end: start + HARNESS_SESSION_MINUTES[row.appointmentType] * 60000, day, week });
+    heldDay[day] = (heldDay[day] || 0) + 1;
+    heldWeek[week] = (heldWeek[week] || 0) + 1;
+  }
+  return { held, freed, heldDay, heldWeek };
+}
+
+module.exports = {
+  findRepoRoot,
+  parseArgs,
+  defaultRunId,
+  evidenceRoot,
+  registerTsNode,
+  toPlain,
+  localDayByOffset,
+  applySeedEnv,
+  weekByOffset,
+  HARNESS_HELD_STATUSES,
+  HARNESS_SESSION_MINUTES,
+  NotCheckable,
+  heldModel,
+};

@@ -5,22 +5,22 @@
  * doctor.js - read-only check: is this checkout worth driving?
  *
  * Usage:
- *   node .agents/skills/verify-scheduler/scripts/doctor.js [--seed small|full|midnight] [--out <file.json>]
+ *   node .agents/skills/verify-scheduler/scripts/doctor.js [--seed small|full|midnight] [--appointments none|busy]
+ *        [--out <file.json>]
  *
  * Checks toolchain, dependencies, a full type-check, the scheduler export, and the seed data.
- * --seed (default small) sets SEED_SLOTS so the seed checks describe the set a drive will use;
- * an unknown seed fails the scheduler export check.
+ * --seed (default small) sets SEED_SLOTS and --appointments (default none) sets SEED_APPOINTMENTS so the seed
+ * checks describe the sets a drive will use; an unknown value of either fails the scheduler export check.
  * Exit 0 when every check is ok or warn; exit 1 when any check fails.
  * The only thing it writes is the optional --out report.
  */
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
-const { findRepoRoot, parseArgs, registerTsNode } = require("./common");
+const { findRepoRoot, parseArgs, registerTsNode, applySeedEnv, HARNESS_HELD_STATUSES } = require("./common");
 
 const args = parseArgs(process.argv.slice(2));
-const seed = args.seed || "small";
-process.env.SEED_SLOTS = seed;
+const { seed, appointments } = applySeedEnv(args);
 const checks = [];
 function run(name, fn) {
   try {
@@ -104,6 +104,7 @@ run("seed clinician", () => {
   return {
     detail: {
       seed,
+      appointmentSet: appointments,
       id: clinician.id,
       name: `${clinician.firstName} ${clinician.lastName}`,
       type: clinician.clinicianType,
@@ -129,11 +130,24 @@ run("seed covers therapy (60-minute slots)", () => {
 });
 
 run("seed covers capacity (existing appointments)", () => {
-  const n = (seedClinician().appointments || []).length;
-  if (n === 0) {
-    return { warn: true, detail: "clinician has 0 appointments - clinician-capacity journeys are blocked" };
+  const rows = seedClinician().appointments || [];
+  if (rows.length === 0 && appointments === "none") {
+    return { warn: true, detail: "0 appointments (none) - pass --appointments busy for clinician-capacity" };
   }
-  return `${n} appointments`;
+  if (rows.length === 0) throw new Error(`0 appointments under --appointments ${appointments}`);
+  const held = rows.filter((a) => HARNESS_HELD_STATUSES.includes(a.status)).length;
+  return `${rows.length} appointments (${appointments}), ${held} hold the clinician's time`;
+});
+
+run("clinician.appointments matches repository", () => {
+  const clinician = seedClinician();
+  const { appointmentRepository } = require(path.join(root, "src", "mockAppointmentOrm"));
+  const embedded = (clinician.appointments || []).map((a) => a.id);
+  const queried = appointmentRepository.findByClinician(clinician.id).map((a) => a.id);
+  if (JSON.stringify(embedded) !== JSON.stringify(queried)) {
+    throw new Error(`clinician.appointments ${JSON.stringify(embedded)} != findByClinician ${JSON.stringify(queried)}`);
+  }
+  return `same ${queried.length} ids`;
 });
 
 run("instance ownership", () => "short-lived CLI: no server, no port, no background process to own");
@@ -153,7 +167,7 @@ function report() {
   if (args.out) {
     const out = path.resolve(args.out);
     fs.mkdirSync(path.dirname(out), { recursive: true });
-    fs.writeFileSync(out, JSON.stringify({ checkedAt: new Date().toISOString(), root, seed, checks }, null, 2));
+    fs.writeFileSync(out, JSON.stringify({ checkedAt: new Date().toISOString(), root, seed, appointments, checks }, null, 2));
     console.log(`report: ${out}`);
   }
 }

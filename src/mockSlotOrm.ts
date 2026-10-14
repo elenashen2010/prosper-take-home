@@ -67,13 +67,26 @@ export const SeedSlotSets = { small: MOCK_SLOT_DATA_SMALL, full: MOCK_SLOT_DATA,
 export type SeedSlotSet = keyof typeof SeedSlotSets;
 
 /**
+ * Which named seed set the environment variable `variable` selects: `fallback` when `value` is unset or empty,
+ * otherwise a key of `sets`. Throws naming the variable, its keys, and the rejected value.
+ */
+export function seedSetFromEnv<K extends string>(
+  variable: string,
+  sets: Readonly<Record<K, unknown>>,
+  fallback: K,
+  value: string | undefined,
+): K {
+  if (value === undefined || value === "") return fallback;
+  if (value in sets) return value as K;
+  throw new Error(`${variable} must be one of ${Object.keys(sets).join(", ")}, got "${value}"`);
+}
+
+/**
  * Which raw slot set seeds the table: SEED_SLOTS=small (default, the README example), full (the 458-row dump),
  * or midnight (six starts around New York midnight).
  */
 export function seedSlotSetFromEnv(value = process.env.SEED_SLOTS): SeedSlotSet {
-  if (value === undefined || value === "") return "small";
-  if (value in SeedSlotSets) return value as SeedSlotSet;
-  throw new Error(`SEED_SLOTS must be one of ${Object.keys(SeedSlotSets).join(", ")}, got "${value}"`);
+  return seedSetFromEnv("SEED_SLOTS", SeedSlotSets, "small", value);
 }
 
 export const seedSlotSet: SeedSlotSet = seedSlotSetFromEnv();

@@ -106,6 +106,56 @@ describe("filterForMaxAppointments", () => {
     expect(() => filterForMaxAppointments(README_LADDER.map(at), duration)).toThrow(RangeError);
   });
 
+  it("keeps the whole ladder when only one more appointment fits", () => {
+    expect(times(filterForMaxAppointments(README_LADDER.map(at), 90, 1))).toEqual(README_LADDER);
+    expect(times(filterForMaxAppointments(README_LADDER.map(at), 90, 2))).toEqual([
+      "2024-08-19T12:00:00.000Z",
+      "2024-08-19T13:30:00.000Z",
+    ]);
+    expect(times(filterForMaxAppointments(README_LADDER.map(at), 90, 5))).toEqual([
+      "2024-08-19T12:00:00.000Z",
+      "2024-08-19T13:30:00.000Z",
+    ]);
+  });
+
+  it("keeps a thirteen-step ladder whole when two may be booked but three would fit", () => {
+    const ladder = [
+      ...README_LADDER,
+      "2024-08-19T13:45:00.000Z",
+      "2024-08-19T14:00:00.000Z",
+      "2024-08-19T14:15:00.000Z",
+      "2024-08-19T14:30:00.000Z",
+      "2024-08-19T14:45:00.000Z",
+      "2024-08-19T15:00:00.000Z",
+    ];
+    expect(times(filterForMaxAppointments(ladder.map(at), 90, 2))).toEqual(ladder);
+    expect(times(filterForMaxAppointments(ladder.map(at), 90, 3))).toEqual([
+      "2024-08-19T12:00:00.000Z",
+      "2024-08-19T13:30:00.000Z",
+      "2024-08-19T15:00:00.000Z",
+    ]);
+    expect(times(filterForMaxAppointments(ladder.map(at), 90))).toEqual([
+      "2024-08-19T12:00:00.000Z",
+      "2024-08-19T13:30:00.000Z",
+      "2024-08-19T15:00:00.000Z",
+    ]);
+  });
+
+  it("keeps a start whose best chain reaches a cap below the packing", () => {
+    const starts = [
+      "2024-08-19T12:00:00.000Z",
+      "2024-08-19T13:00:00.000Z",
+      "2024-08-19T13:30:00.000Z",
+      "2024-08-19T15:00:00.000Z",
+      "2024-08-19T16:30:00.000Z",
+    ];
+    expect(times(filterForMaxAppointments(starts.map(at), 90, 3))).toEqual(starts);
+  });
+
+  it("keeps nothing when no appointment fits", () => {
+    expect(filterForMaxAppointments(README_LADDER.map(at), 90, 0)).toEqual([]);
+  });
+
   it("keeps 246 of the full seed's 458 slots, day by day", () => {
     const newYork = parseTimeZone("America/New_York");
     const days = new Map<string, Date[]>();

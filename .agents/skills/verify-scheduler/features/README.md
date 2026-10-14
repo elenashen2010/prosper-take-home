@@ -12,7 +12,7 @@ Read this index before driving, then use the matching feature file as the recipe
   cleanup, so evidence lands under `.verify-evidence/<id>/`.
 - Seed data is fixed and in-memory: patient Byrne Hollander (`NY`, `AETNA`); one
   psychologist, Dr. Jane Doe (`9c516382-c5b2-4677-a7ac-4e100fa35bdd`, `NY`/`CA`,
-  `AETNA`/`CIGNA`, time zone `America/New_York`, max 2/day, 8/week, no appointments). Her
+  `AETNA`/`CIGNA`, time zone `America/New_York`, max 2/day, 8/week). Her
   slots come from one of three sets, picked by `--seed` on drive.js and doctor.js
   (`SEED_SLOTS` for `npm run dev`):
   - `small` (default): six ninety-minute slots on four days, `2024-08-19T12:00Z`,
@@ -22,10 +22,18 @@ Read this index before driving, then use the matching feature file as the recipe
     `03:15Z`, `13:00Z`, `2024-08-21T02:30Z`, `2024-08-27T12:00Z`, `2024-08-28T03:30Z`.
     Four UTC days, three New York days.
   No 60-minute slots in any set.
+- Her appointments come from one of two sets, picked by `--appointments` on drive.js and
+  doctor.js (`SEED_APPOINTMENTS` for `npm run dev`):
+  - `none` (default): no appointments, the README example's empty calendar.
+  - `busy`: 11 rows in the week of 2024-08-19, 7 of which hold her time.
+    `features/clinician-capacity.md` lists them.
+  `summary.json` records both sets. drive.js appends `-<seed>` to its default label for a
+  seed other than `small`, and `-busy` for the busy set.
 - A verification run covers the small and full seeds. Run every recipe with the default
   seed and again with `--seed full`, using a distinct `--label` per seed, unless the
   feature file marks a step as seed-independent or names the one seed it needs. The
-  `midnight` seed runs only where a feature file names it.
+  `midnight` seed runs only where a feature file names it. The `busy` appointment set runs
+  only where a feature file names it. Every other recipe uses `none`.
 - Never drive anything but this repo's `findAvailableSlots`; there is no shared instance.
 
 ## Driving conventions
@@ -39,6 +47,8 @@ Read this index before driving, then use the matching feature file as the recipe
   `slotDatesFound` is twice the number of options, and `byClinician` counts option slots
   per clinician. `scripts/pairs.js` checks the pairing rule over that output, judging each
   slot's day in the group's `timezone`; a group without one is exit 2.
+  `scripts/optimized.js` and `scripts/capacity.js` read the seed and appointment sets from
+  `summary.json`, so run them on the drive's own evidence directory.
 - Run the eligible-patient journey before any miss journey, so a "returns nothing"
   expectation is read next to a known non-empty result.
 - Inspect `output.json` when a recipe asks for a by-hand check; `summary.json` is
@@ -47,7 +57,8 @@ Read this index before driving, then use the matching feature file as the recipe
 ## Proof and skip reporting
 
 - Proof is the evidence directory for the drive: `command.txt`, `input.json`,
-  `output.json`, `summary.json` (plus `pairs.json` when pairs.js ran), and the run's `doctor.json`.
+  `output.json`, `summary.json` (plus `pairs.json`, `optimized.json`, and `capacity.json`
+  when those scripts ran), and the run's `doctor.json`.
 - Record the feature id and sub-feature id with every claim.
 - A journey whose precondition the seed data lacks reports `blocked` with the unmet
   precondition. Do not simulate the precondition through a different code path.
@@ -68,9 +79,10 @@ and `Gotchas`.
 - [Assessment slots](./assessment-slots.md) covers eligibility by state and insurance,
   grouping by clinician, and the two-session pairing rule (README Task 1).
 - [Slot optimization](./slot-optimization.md) covers hiding overlapping slots that would
-  reduce the number of bookable appointments in a day (README Task 2). The ladder journey
-  needs `--seed full`; `scripts/optimized.js` checks every offered day.
+  reduce the number of appointments the clinician can still take in a day (README Task 2).
+  The ladder journey needs `--seed full`; `scripts/optimized.js` checks every offered day.
 - [Clinician capacity](./clinician-capacity.md) covers daily and weekly maximums and
-  existing appointments (README Task 3). Blocked on seed data today.
+  existing appointments (README Task 3). It needs `--appointments busy`;
+  `scripts/capacity.js` checks every option and offered day.
 - [Therapy intake](./therapy-intake.md) covers 60-minute intake slots with therapists
   (README scenario). Blocked on seed data and API today.

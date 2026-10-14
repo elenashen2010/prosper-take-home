@@ -7,13 +7,14 @@
  * Usage:
  *   node .agents/skills/verify-scheduler/scripts/drive.js --feature <feature-id> [--run <run-id>]
  *        [--state NY] [--insurance AETNA] [--first Byrne] [--last Hollander] [--patient-id <id>]
- *        [--seed small|full|midnight] [--label <name>] [--expect-min N] [--expect-max N]
+ *        [--seed small|full|midnight] [--appointments none|busy] [--label <name>] [--expect-min N] [--expect-max N]
  *        [--expect-contains <iso[,iso...]>] [--expect-absent <iso[,iso...]>]
  *        [--print] [--out <evidence-root>]
  *
  * Defaults: the patient is the seed patient from src/starter-code/mock-patient.ts with any overrides
- * applied; run id is a timestamp; evidence root is <repo>/.verify-evidence; --seed is small.
- * --seed sets SEED_SLOTS before the app loads; an unknown seed is reported as the scheduler throwing (exit 2).
+ * applied; run id is a timestamp; evidence root is <repo>/.verify-evidence; --seed is small; --appointments is none.
+ * --seed sets SEED_SLOTS and --appointments sets SEED_APPOINTMENTS before the app loads; an unknown value of
+ * either is reported as the scheduler throwing (exit 2).
  *
  * Evidence: <evidence-root>/<run>/<feature>/<label>/{command.txt,input.json,output.json,summary.json}
  *
@@ -23,7 +24,7 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { findRepoRoot, parseArgs, defaultRunId, evidenceRoot, registerTsNode, toPlain } = require("./common");
+const { findRepoRoot, parseArgs, defaultRunId, evidenceRoot, registerTsNode, toPlain, applySeedEnv } = require("./common");
 
 let args;
 try {
@@ -37,8 +38,7 @@ if (!args.feature) {
   process.exit(2);
 }
 
-const seed = args.seed || "small";
-process.env.SEED_SLOTS = seed;
+const { seed, appointments } = applySeedEnv(args);
 
 const root = findRepoRoot(__dirname);
 registerTsNode(root); // full type-check, same as `npm run dev`
@@ -65,7 +65,9 @@ if (!InsurancePayers.includes(patient.insurance)) {
 }
 
 const runId = args.run || defaultRunId();
-const label = args.label || `${patient.state}-${patient.insurance}${seed === "small" ? "" : `-${seed}`}`;
+const label =
+  args.label ||
+  `${patient.state}-${patient.insurance}${seed === "small" ? "" : `-${seed}`}${appointments === "none" ? "" : `-${appointments}`}`;
 const featureRoot = path.join(evidenceRoot(root, args), runId, args.feature);
 let dir = path.join(featureRoot, label);
 for (let n = 2; fs.existsSync(dir); n++) dir = path.join(featureRoot, `${label}-${n}`);
@@ -125,6 +127,7 @@ const summary = {
   run: runId,
   label,
   seed,
+  appointments,
   checkedAt: new Date().toISOString(),
   node: process.versions.node,
   schedulerApiSha256: apiSha256,
