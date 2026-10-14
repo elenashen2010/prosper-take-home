@@ -10,12 +10,15 @@ description: "Use when you need proof that the Prosper appointment-availability 
 The app is a TypeScript library with a one-line CLI wrapper. The user-facing path is
 `findAvailableSlots(patient)` in `src/schedulerApi.ts`, called by `src/index.ts`, which
 `npm run dev` executes through ts-node and prints to stdout. There is no server, no UI,
-no database: the "database" is in-memory seed data under `src/starter-code/`. Jest
-(`npm test`) is the secondary surface; it has no test files yet and exits 1 with
-"No tests found", which is not a failure of the app.
+no database: the "database" is in-memory seed data under `src/starter-code/`, served
+through two mock repositories (`src/mockClinicianOrm.ts`, `src/mockSlotOrm.ts`). Jest
+(`npm test`) is the secondary surface; it covers the repositories and the UTC day helper,
+not the scheduler itself.
 
 The scheduler is a pure function over the seed data. Driving it means: build a patient,
-call the function the same way `index.ts` does, record what came back.
+call the function the same way `index.ts` does, record what came back. As of 2026-10-14 it
+returns an array of `[AvailableAppointmentSlot, AvailableAppointmentSlot]` tuples, one per
+two-session assessment option.
 
 ## Launch
 
@@ -29,16 +32,24 @@ npm ci
 Run from the repo root when `node_modules/` is missing. Ready means Doctor reports
 `RESULT: READY`. No migrations, no seed step: the seed modules load on every require.
 
-Seed data an agent can rely on (verified 2026-10-13):
+Seed data an agent can rely on (verified 2026-10-14):
 
 - Patient Byrne Hollander, state `NY`, insurance `AETNA` (`src/starter-code/mock-patient.ts`).
 - One clinician, Dr. Jane Doe, id `9c516382-c5b2-4677-a7ac-4e100fa35bdd`, PSYCHOLOGIST,
   states `NY, CA`, insurances `AETNA, CIGNA`, max 2 per day, max 8 per week, zero
-  appointments (`src/starter-code/mock-clinician.ts`).
-- 458 available slots, all 90 minutes, UTC, from `2024-08-19T12:00Z` through
-  `2024-09-26T22:30Z`, mostly 15-minute ladders (`src/starter-code/mock-slot-data.ts`).
-- No 60-minute slots and no existing appointments. Therapy and capacity journeys are
-  blocked on seed preconditions; see the feature map.
+  appointments (`src/starter-code/mock-clinician.ts`). Her `availableSlots` come from the
+  slot repository.
+- Two slot sets, selected by the `SEED_SLOTS` environment variable, which
+  `src/mockSlotOrm.ts` reads when it loads. Both are all 90 minutes, UTC, for Dr. Doe.
+  - `small` (default): six slots on four days, `2024-08-19T12:00Z`, `12:15Z`,
+    `2024-08-21T12:00Z`, `15:00Z`, `2024-08-22T15:00Z`, `2024-08-28T12:15Z`. The README's
+    worked example; what the user runs by hand.
+  - `full`: the 458-row dump, `2024-08-19T12:00Z` through `2024-09-26T22:30Z`, 27 days,
+    mostly 15-minute ladders. The realistic table.
+  Verification covers both: every recipe runs once per seed unless its feature file says
+  the seed does not matter. Any other `SEED_SLOTS` value makes the app throw at load.
+- No 60-minute slots and no existing appointments in either set. Therapy and capacity
+  journeys are blocked on seed preconditions; see the feature map.
 
 Isolation: every drive is a fresh process reading in-memory data, so concurrent drives
 cannot interfere. Give each verification run its own `--run <id>` so evidence does not mix.
@@ -53,8 +64,9 @@ Read-only. Confirms repo root, node >= 18, dependencies installed, a clean full
 `tsc --noEmit`, that `findAvailableSlots` is exported, and that the seed patient and
 clinician load, with slot counts and lengths. Warns (not fails) when the seed lacks
 60-minute slots or appointments. Exit 0 = READY, exit 1 = do not drive. Add
-`--out <file.json>` to keep the report as evidence. Run it first whenever anything looks
-off, and again after any failed drive.
+`--seed full` to check the full dump (the report names the seed), and `--out <file.json>`
+to keep the report as evidence. Run it first whenever anything looks off, and again after
+any failed drive.
 
 ## Drive
 
@@ -65,7 +77,9 @@ node .agents/skills/verify-scheduler/scripts/drive.js --feature <feature-id> --r
 Calls `findAvailableSlots(patient)` in-process through ts-node with full type-checking,
 the same path `npm run dev` takes. The patient defaults to the seed patient; override with
 `--state`, `--insurance`, `--first`, `--last`, `--patient-id`. Values are validated against
-the repo's `UsStateAbbreviations` and `InsurancePayers`.
+the repo's `UsStateAbbreviations` and `InsurancePayers`. `--seed small|full` (default
+small) sets `SEED_SLOTS` before the app loads, exactly as `SEED_SLOTS=full npm run dev`
+would; the seed is recorded in `summary.json` and appended to the default label.
 
 Expectations turn the drive into a pass/fail step:
 
@@ -80,6 +94,16 @@ The summary is shape-agnostic: it counts top-level items, collects every `date` 
 finds at any depth, and buckets them by the nearest `clinicianId`. If the implementation
 changes the return type (pairs, groups, maps), the summary still works and the feature
 files say what to inspect by hand.
+
+```
+node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/<run-id>/<feature>/<label> [--max-gap-days 7]
+```
+
+Checks the README pairing rule over a drive's `output.json`: each option is one clinician,
+on different UTC days, at most 7 days apart. It reads an array of `[slot, slot]` tuples,
+or a flat even-length list of slots taken two at a time. Exit 0 when all pairs are valid,
+1 when any violates, 2 when the output is neither shape. It writes `pairs.json` next to the
+output as evidence.
 
 Feature recipes live in [features/README.md](features/README.md). Drive the feature's
 listed entry points, not just the convenient one.
@@ -98,6 +122,10 @@ drive writes:
 
 Keep the doctor report next to it: `doctor.js --out .verify-evidence/<run-id>/doctor.json`.
 
+Size: a full-seed eligible drive writes about 51 MB of `output.json` while the scheduler
+emits every cross-day combination (about 100,000 options). That is expected until README
+Tasks 1 and 2 are complete; do not trim the output to save space.
+
 Proof standards for this app:
 
 - Exercise the real user path: `findAvailableSlots(patient)` with a patient object. Do not
@@ -110,8 +138,9 @@ Proof standards for this app:
   evidence, that is a finding.
 - Mocks: the in-memory seed modules are the production boundary stand-in for the EHR
   tables. No other mocking.
-- An empty result is a result. With the scheduler stub in place, eligible-patient journeys
-  fail honestly (`count >= 1` not met); report that, do not loosen the expectation.
+- A failing expectation that encodes a README rule is a finding, not a harness problem.
+  On 2026-10-14 the pairing check fails because the scheduler emits a 9-day pair; report
+  that, do not loosen the expectation.
 
 ## Cleanup
 
@@ -132,8 +161,9 @@ Git Bash, and POSIX shells alike. Paths are relative to the repo root.
 | Script | Invocation | Purpose |
 | --- | --- | --- |
 | doctor | `node .agents/skills/verify-scheduler/scripts/doctor.js [--out <file>]` | Read-only readiness check |
-| drive | `node .agents/skills/verify-scheduler/scripts/drive.js --feature <id> --run <id> [...]` | Run the scheduler for a patient, write evidence, assert expectations |
+| drive | `node .agents/skills/verify-scheduler/scripts/drive.js --feature <id> --run <id> [--seed small\|full] [...]` | Run the scheduler for a patient on one seed set, write evidence, assert expectations |
 | cleanup | `node .agents/skills/verify-scheduler/scripts/cleanup.js --run <id> [--remove-dist]` | Confirm evidence survived; remove `dist/` on request |
+| pairs | `node .agents/skills/verify-scheduler/scripts/pairs.js <evidence-dir> [--max-gap-days 7]` | Check each consecutive pair in a drive's output against the pairing rule |
 
 `.claude/skills/verify-scheduler` is a directory junction to `.agents/skills/verify-scheduler`
 (the other skills in this repo are symlinks; creating a symlink needs admin rights on this
@@ -144,15 +174,21 @@ machine, a junction does not). Either path works in commands.
 ```
 RUN=$(date +%Y%m%d-%H%M%S)
 node .agents/skills/verify-scheduler/scripts/doctor.js --out .verify-evidence/$RUN/doctor.json
-node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --expect-min 1 --expect-contains 2024-08-19T12:00:00.000Z
+node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --label assess-eligible --expect-min 1 --expect-contains 2024-08-19T12:00:00.000Z
+node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/$RUN/assessment-slots/assess-eligible
+node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --seed full --label assess-eligible-full --expect-min 1 --expect-contains 2024-08-19T12:00:00.000Z,2024-09-26T22:30:00.000Z
+node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/$RUN/assessment-slots/assess-eligible-full
 node .agents/skills/verify-scheduler/scripts/cleanup.js --run $RUN
 ```
 
-In PowerShell, set the run id with `$RUN = Get-Date -Format yyyyMMdd-HHmmss`; the three
-`node` commands are then identical.
+In PowerShell, set the run id with `$RUN = Get-Date -Format yyyyMMdd-HHmmss`; the `node`
+commands are then identical.
 
-Proven 2026-10-13 on this checkout: doctor READY, the `assess-eligible` drive ran the real
-path and failed its expectations because the scheduler is still the starter stub (count 0),
-cleanup kept all five evidence files. The non-empty code path (a clinician-keyed map of
-slot pairs, contains/absent checks, exit codes 1 and 2) was proven against a throwaway
-scheduler in a scratch copy of the repo, not against this checkout.
+Proven 2026-10-14 on this checkout. Small seed: doctor READY with two seed warnings,
+`assess-eligible` exit 0 with 13 options, pairs.js exit 1 with 2 of 13 options 9 days
+apart (a product finding), both miss drives exit 0, `opt-keep-first` exit 1 because no
+optimization exists yet, `opt-independent` exit 0. Full seed: doctor READY,
+`assess-eligible` exit 0 with 100,422 options in 51 MB, pairs.js exit 1 with 63,257
+options beyond 7 days, both miss drives exit 0, `opt-ladder` exit 1 because the five
+intermediate starts are not hidden. Cleanup kept every evidence file in every run. First
+proven 2026-10-13 against the starter stub (count 0).

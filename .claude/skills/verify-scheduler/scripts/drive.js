@@ -7,12 +7,13 @@
  * Usage:
  *   node .agents/skills/verify-scheduler/scripts/drive.js --feature <feature-id> [--run <run-id>]
  *        [--state NY] [--insurance AETNA] [--first Byrne] [--last Hollander] [--patient-id <id>]
- *        [--label <name>] [--expect-min N] [--expect-max N]
+ *        [--seed small|full] [--label <name>] [--expect-min N] [--expect-max N]
  *        [--expect-contains <iso[,iso...]>] [--expect-absent <iso[,iso...]>]
  *        [--print] [--out <evidence-root>]
  *
  * Defaults: the patient is the seed patient from src/starter-code/mock-patient.ts with any overrides
- * applied; run id is a timestamp; evidence root is <repo>/.verify-evidence.
+ * applied; run id is a timestamp; evidence root is <repo>/.verify-evidence; --seed is small.
+ * --seed sets SEED_SLOTS before the app loads, which is how src/mockSlotOrm.ts picks its slot set.
  *
  * Evidence: <evidence-root>/<run>/<feature>/<label>/{command.txt,input.json,output.json,summary.json}
  *
@@ -35,6 +36,13 @@ if (!args.feature) {
   console.error("--feature <feature-id> is required (see features/README.md)");
   process.exit(2);
 }
+
+const seed = args.seed || "small";
+if (!["small", "full"].includes(seed)) {
+  console.error(`--seed must be small or full, got ${seed}`);
+  process.exit(2);
+}
+process.env.SEED_SLOTS = seed;
 
 const root = findRepoRoot(__dirname);
 registerTsNode(root); // full type-check, same as `npm run dev`
@@ -61,7 +69,7 @@ if (!InsurancePayers.includes(patient.insurance)) {
 }
 
 const runId = args.run || defaultRunId();
-const label = args.label || `${patient.state}-${patient.insurance}`;
+const label = args.label || `${patient.state}-${patient.insurance}${seed === "full" ? "-full" : ""}`;
 const featureRoot = path.join(evidenceRoot(root, args), runId, args.feature);
 let dir = path.join(featureRoot, label);
 for (let n = 2; fs.existsSync(dir); n++) dir = path.join(featureRoot, `${label}-${n}`);
@@ -120,6 +128,7 @@ const summary = {
   feature: args.feature,
   run: runId,
   label,
+  seed,
   checkedAt: new Date().toISOString(),
   node: process.versions.node,
   schedulerApiSha256: apiSha256,

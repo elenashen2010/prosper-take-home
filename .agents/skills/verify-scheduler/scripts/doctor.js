@@ -5,9 +5,10 @@
  * doctor.js - read-only check: is this checkout worth driving?
  *
  * Usage:
- *   node .agents/skills/verify-scheduler/scripts/doctor.js [--out <file.json>]
+ *   node .agents/skills/verify-scheduler/scripts/doctor.js [--seed small|full] [--out <file.json>]
  *
  * Checks toolchain, dependencies, a full type-check, the scheduler export, and the seed data.
+ * --seed (default small) sets SEED_SLOTS so the seed checks describe the set a drive will use.
  * Exit 0 when every check is ok or warn; exit 1 when any check fails.
  * The only thing it writes is the optional --out report.
  */
@@ -17,6 +18,12 @@ const { spawnSync } = require("child_process");
 const { findRepoRoot, parseArgs, registerTsNode } = require("./common");
 
 const args = parseArgs(process.argv.slice(2));
+const seed = args.seed || "small";
+if (!["small", "full"].includes(seed)) {
+  console.error(`--seed must be small or full, got ${seed}`);
+  process.exit(2);
+}
+process.env.SEED_SLOTS = seed;
 const checks = [];
 function run(name, fn) {
   try {
@@ -99,6 +106,7 @@ run("seed clinician", () => {
   const dates = clinician.availableSlots.map((s) => new Date(s.date).toISOString()).sort();
   return {
     detail: {
+      seed,
       id: clinician.id,
       name: `${clinician.firstName} ${clinician.lastName}`,
       type: clinician.clinicianType,
@@ -147,7 +155,7 @@ function report() {
   if (args.out) {
     const out = path.resolve(args.out);
     fs.mkdirSync(path.dirname(out), { recursive: true });
-    fs.writeFileSync(out, JSON.stringify({ checkedAt: new Date().toISOString(), root, checks }, null, 2));
+    fs.writeFileSync(out, JSON.stringify({ checkedAt: new Date().toISOString(), root, seed, checks }, null, 2));
     console.log(`report: ${out}`);
   }
 }

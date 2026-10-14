@@ -24,42 +24,54 @@ Preconditions:
 
 - Doctor reports `RESULT: READY`.
 - `$RUN` is this run's id.
-- Seed clinician Dr. Doe covers `NY` and `CA` and accepts `AETNA` and `CIGNA`.
+- Seed clinician Dr. Doe covers `NY` and `CA`, accepts `AETNA` and `CIGNA`, and has slots on
+  2024-08-19, 08-21, 08-22 and 08-28.
 
 - **Eligible patient.** Ask for the seed patient's options (NY, AETNA). Run
-  `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --label assess-eligible --expect-min 1 --expect-contains 2024-08-19T12:00:00.000Z`.
+  `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --label assess-eligible --expect-min 1 --expect-contains 2024-08-19T12:00:00.000Z,2024-08-21T12:00:00.000Z`.
   Exit 0; `summary.json` shows `count >= 1`, `byClinician` has only
   `9c516382-c5b2-4677-a7ac-4e100fa35bdd`, and `slotDateRange` lies within
-  `2024-08-19T12:00:00.000Z` to `2024-09-26T22:30:00.000Z`.
-- **Grouped by clinician.** Open that drive's `output.json`. Every option is attributable
-  to one clinician id (a `clinicianId` field on the slots, or a top-level key per
-  clinician). With one seed clinician there is exactly one group.
-- **Paired sessions.** In the same `output.json`, every option lists two slot dates. The
-  two fall on different UTC calendar days and the later starts no more than 7 x 24 hours
-  after the earlier. The pair `2024-08-19T12:00:00.000Z` + `2024-08-21T12:00:00.000Z`
-  (from the README example) is present. No option pairs `2024-08-19T12:00:00.000Z` with
-  `2024-08-28T12:15:00.000Z` (9 days apart).
-- **State miss.** Same insurance, state `TX`. Run
+  `2024-08-19T12:00:00.000Z` to `2024-08-28T12:15:00.000Z`.
+- **Paired sessions.** Check every option in that drive's output. Run
+  `node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/$RUN/assessment-slots/assess-eligible`.
+  Exit 0 and `invalid: 0`: every option is one clinician, on different UTC days, at most
+  7 days apart. The pair `2024-08-19T12:00:00.000Z` + `2024-08-21T12:00:00.000Z` (from the
+  README example) is listed.
+- **Eligible patient, full dump.** Repeat on the realistic table. Run
+  `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --seed full --label assess-eligible-full --expect-min 1 --expect-contains 2024-08-19T12:00:00.000Z,2024-09-26T22:30:00.000Z`
+  then `node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/$RUN/assessment-slots/assess-eligible-full`.
+  Drive exit 0 with `slotDateRange` `2024-08-19T12:00:00.000Z` to `2024-09-26T22:30:00.000Z`;
+  pairs.js exit 0 and `invalid: 0`.
+- **Grouped by clinician.** Open `output.json`. Every slot carries the clinician id it
+  belongs to. With one seed clinician there is exactly one group, so grouping across
+  clinicians cannot be distinguished from a flat list; report `assess-grouped` as blocked
+  on a second eligible seed clinician.
+- **State miss.** Same insurance, state `TX`. Seed-independent; run once. Run
   `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --label assess-state-miss --state TX --expect-max 0`.
   Exit 0 and `count` is 0.
-- **Insurance miss.** Same state, insurance `BCBS`. Run
+- **Insurance miss.** Same state, insurance `BCBS`. Seed-independent; run once. Run
   `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --label assess-insurance-miss --insurance BCBS --expect-max 0`.
   Exit 0 and `count` is 0.
-- **Proof.** The three evidence directories under `.verify-evidence/$RUN/assessment-slots/`
-  each hold `command.txt`, `input.json`, `output.json`, `summary.json`.
+- **Proof.** The four evidence directories under `.verify-evidence/$RUN/assessment-slots/`
+  each hold `command.txt`, `input.json`, `output.json`, `summary.json`; the two eligible
+  directories also hold `pairs.json`.
 
 ## Gotchas
 
-- As of 2026-10-13 `findAvailableSlots` is the starter stub and returns `[]`.
-  `assess-eligible` fails (`count >= 1` not met) until README Task 1 is implemented. That
-  is the correct report, not a harness bug.
-- The miss journeys pass against the stub for the wrong reason. Run `assess-eligible`
-  first and only count the misses as verified when it passed in the same run.
-- The starter return type is a flat `AvailableAppointmentSlot[]`, which cannot express
-  pairs. If the implementation keeps that type, `assess-pairs` cannot be proven and must
-  be reported as not verifiable with a citation to the return type.
-- `summary.json` counts top-level items; for a grouped result that is the number of
-  clinicians, not the number of options. Read `slotDatesFound` and `output.json`.
-- After README Task 2 is implemented, slots like `2024-08-19T12:15:00.000Z` are
-  legitimately hidden; do not expect the README's full 11-pair list verbatim.
+- As of 2026-10-14 the scheduler pairs every slot on day i with every slot on day j for
+  all day pairs and applies no 7-day cap, so `assess-pairs` fails on both seeds: small has
+  2 of 13 options 9 days apart (`2024-08-19T12:00` + `2024-08-28T12:15`); full has 63,257
+  of 100,422 options beyond 7 days. That is a product gap, not a harness problem; keep the
+  expectation.
+- The output is an array of `[session1, session2]` tuples, so `count` is the number of
+  options. pairs.js reads that shape, and also a flat even-length list; any other return
+  shape makes it exit 2, so update pairs.js in the same change.
+- The full-seed eligible drive writes about 51 MB of `output.json` and runs in about two
+  seconds while the scheduler emits every combination. pairs.js prints only the first 20
+  invalid pairs and stores at most 1000 in `pairs.json` for runs over 200 options.
+- The miss journeys would pass against an empty result too. Run `assess-eligible` first
+  and only count the misses as verified when it passed in the same run.
+- Only the six small-set slots are seeded. The README's full 11-pair example list assumes
+  the same six slots, but after README Task 2 is implemented slots like
+  `2024-08-19T12:15:00.000Z` are legitimately hidden; do not expect the list verbatim.
 - Dates are UTC. "Different days" means different UTC calendar dates.

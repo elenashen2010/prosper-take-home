@@ -22,9 +22,12 @@ Preconditions:
 
 - Doctor reports `RESULT: READY` and does not warn "no 60-minute slots".
 - `$RUN` is this run's id.
-- At least one THERAPIST clinician covering `NY` and accepting `AETNA` with 60-minute
-  slots exists in the seed data.
-- The API accepts a way to say the patient wants therapy rather than an assessment.
+- At least one `THERAPIST` clinician covering `NY` and accepting `AETNA` exists in the
+  clinician seed (`src/starter-code/mock-clinician.ts` and the list in
+  `src/mockClinicianOrm.ts`), with `length: 60` slots under its id in the slot seed
+  (`src/mockSlotOrm.ts`).
+- The API accepts a way to say the patient wants therapy rather than an assessment, and
+  `drive.js` has a matching flag named here.
 
 - **Eligible therapy patient.** Ask for therapy options for the seed patient. Run
   `node .agents/skills/verify-scheduler/scripts/drive.js --feature therapy-intake --run $RUN --label therapy-eligible --expect-min 1`.
@@ -35,10 +38,13 @@ Preconditions:
 
 ## Gotchas
 
-- Blocked as of 2026-10-13 on two counts: the seed data has only 90-minute slots and one
-  psychologist (Doctor warns "no 60-minute slots"), and neither `Patient` nor
-  `findAvailableSlots` has a field for the requested service. Report `blocked` with both
-  reasons.
+- Blocked as of 2026-10-14 on two counts: every seeded slot is 90 minutes and the only
+  seeded clinician is a psychologist (Doctor warns "no 60-minute slots"), and neither
+  `Patient` nor `findAvailableSlots` has a field for the requested service. Report
+  `blocked` with both reasons.
+- The scheduler today applies the assessment pairing to every eligible clinician, so even
+  with a therapist seeded, `therapy-single` would fail until the scheduler branches on
+  clinician type or requested service.
 - When the API gains a service-type input, add the matching `drive.js` option and record
   its name here; until then do not fake the request by filtering output.
 - The 60-vs-90-minute rule of thumb from the README (90 = psychologist) is a data
