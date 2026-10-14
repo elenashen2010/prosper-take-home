@@ -1,4 +1,4 @@
-import { clinicianRepository, createMockClinicianRepository } from "./mockOrm";
+import { clinicianRepository, createMockClinicianRepository } from "./mockClinicianOrm";
 import { Clinician } from "./starter-code/clinician";
 import { clinician as seedClinician } from "./starter-code/mock-clinician";
 import { patient } from "./starter-code/mock-patient";
@@ -27,11 +27,10 @@ function idsOf(clinicians: Clinician[]): string[] {
 }
 
 describe("clinicianRepository", () => {
-  it("returns the seeded clinician with all 458 slots for the seed patient", () => {
+  it("returns the seeded clinician object itself for the seed patient", () => {
     const found = clinicianRepository.findByStateAndInsurance(patient);
     expect(idsOf(found)).toEqual(["9c516382-c5b2-4677-a7ac-4e100fa35bdd"]);
-    expect(found[0].id).toBe(seedClinician.id);
-    expect(found[0].availableSlots).toHaveLength(458);
+    expect(found[0]).toBe(seedClinician);
   });
 
   it("returns nothing when the state does not match", () => {
