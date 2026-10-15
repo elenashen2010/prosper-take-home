@@ -76,7 +76,7 @@ const repositories = (
   appointments: readonly Appointment[] = [],
 ): SchedulerRepositories => ({
   clinicians: createMockClinicianRepository(clinicians),
-  slots: createMockSlotRepository(slots, clinicians),
+  slots: createMockSlotRepository(slots),
   appointments: createMockAppointmentRepository(appointments),
 });
 
@@ -208,27 +208,19 @@ describe("findAvailableSlots", () => {
     expect(findAvailableSlots(patient, repositories([clinician], reversed)).map(pairsOf)).toEqual([README_PAIRS]);
   });
 
-  it("queries slots once per eligible psychologist and never by day", () => {
+  it("queries slots once per eligible psychologist", () => {
     const clinicians = [
       makeClinician({ id: "therapist", clinicianType: "THERAPIST" }),
       makeClinician({ id: "psychA" }),
       makeClinician({ id: "psychB" }),
     ];
     const isos = ["2024-08-19T12:00:00.000Z", "2024-08-21T12:00:00.000Z"];
-    const inner = createMockSlotRepository(
-      [...slotsAt("therapist", isos), ...slotsAt("psychA", isos), ...slotsAt("psychB", isos)],
-      clinicians,
-    );
+    const inner = createMockSlotRepository([...slotsAt("therapist", isos), ...slotsAt("psychA", isos), ...slotsAt("psychB", isos)]);
     const calls: Record<string, number> = {};
-    let dayQueries = 0;
     const counting: SlotRepository = {
-      findByClinician: (id, days) => {
+      findByClinician: (id) => {
         calls[id] = (calls[id] ?? 0) + 1;
-        return inner.findByClinician(id, days);
-      },
-      findSlotDaysByClinician: (id) => {
-        dayQueries++;
-        return inner.findSlotDaysByClinician(id);
+        return inner.findByClinician(id);
       },
     };
     const appointmentCalls: Record<string, number> = {};
@@ -245,7 +237,6 @@ describe("findAvailableSlots", () => {
     });
     expect(groups.map((g) => g.clinician.id)).toEqual(["psychA", "psychB"]);
     expect(calls).toEqual({ psychA: 1, psychB: 1 });
-    expect(dayQueries).toBe(0);
     expect(appointmentCalls).toEqual({ psychA: 1, psychB: 1 });
   });
 
