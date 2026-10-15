@@ -76,7 +76,7 @@ const repositories = (
   appointments: readonly Appointment[] = [],
 ): SchedulerRepositories => ({
   clinicians: createMockClinicianRepository(clinicians),
-  slots: createMockSlotRepository(slots, clinicians),
+  slots: createMockSlotRepository(slots),
   appointments: createMockAppointmentRepository(appointments),
 });
 
@@ -208,27 +208,19 @@ describe("findAvailableSlots", () => {
     expect(findAvailableSlots(patient, repositories([clinician], reversed)).map(pairsOf)).toEqual([README_PAIRS]);
   });
 
-  it("queries slots once per eligible psychologist and never by day", () => {
+  it("queries slots once per eligible psychologist", () => {
     const clinicians = [
       makeClinician({ id: "therapist", clinicianType: "THERAPIST" }),
       makeClinician({ id: "psychA" }),
       makeClinician({ id: "psychB" }),
     ];
     const isos = ["2024-08-19T12:00:00.000Z", "2024-08-21T12:00:00.000Z"];
-    const inner = createMockSlotRepository(
-      [...slotsAt("therapist", isos), ...slotsAt("psychA", isos), ...slotsAt("psychB", isos)],
-      clinicians,
-    );
+    const inner = createMockSlotRepository([...slotsAt("therapist", isos), ...slotsAt("psychA", isos), ...slotsAt("psychB", isos)]);
     const calls: Record<string, number> = {};
-    let dayQueries = 0;
     const counting: SlotRepository = {
-      findByClinician: (id, days) => {
+      findByClinician: (id) => {
         calls[id] = (calls[id] ?? 0) + 1;
-        return inner.findByClinician(id, days);
-      },
-      findSlotDaysByClinician: (id) => {
-        dayQueries++;
-        return inner.findSlotDaysByClinician(id);
+        return inner.findByClinician(id);
       },
     };
     const appointmentCalls: Record<string, number> = {};
@@ -245,7 +237,6 @@ describe("findAvailableSlots", () => {
     });
     expect(groups.map((g) => g.clinician.id)).toEqual(["psychA", "psychB"]);
     expect(calls).toEqual({ psychA: 1, psychB: 1 });
-    expect(dayQueries).toBe(0);
     expect(appointmentCalls).toEqual({ psychA: 1, psychB: 1 });
   });
 
@@ -264,6 +255,12 @@ describe("findAvailableSlots", () => {
   it("pairs two slots that share a UTC day but not a New York day", () => {
     expect(pairsForSlots(["2024-08-20T03:00:00.000Z", "2024-08-20T13:00:00.000Z"])).toEqual([
       [["2024-08-20T03:00:00.000Z", "2024-08-20T13:00:00.000Z"]],
+    ]);
+  });
+
+  it("never pairs a late session with a next-day start it runs into, and pairs one that touches its end", () => {
+    expect(pairsForSlots(["2024-08-20T03:30:00.000Z", "2024-08-20T04:15:00.000Z", "2024-08-20T05:00:00.000Z"])).toEqual([
+      [["2024-08-20T03:30:00.000Z", "2024-08-20T05:00:00.000Z"]],
     ]);
   });
 
@@ -310,7 +307,7 @@ describe("findAvailableSlots", () => {
     expect(pairsOf(groups[0])).toEqual([["2024-08-20T08:00:00.000Z", "2024-08-20T20:00:00.000Z"]]);
   });
 
-  it("offers the midnight seed's 8 options through the seeded repositories", () => {
+  it("offers the midnight seed's 9 options through the seeded repositories", () => {
     expect(seededPairsWith({ SEED_SLOTS: "midnight" })).toEqual([
       [
         ["2024-08-20T03:00:00.000Z", "2024-08-20T13:00:00.000Z"],
@@ -321,6 +318,7 @@ describe("findAvailableSlots", () => {
         ["2024-08-20T13:00:00.000Z", "2024-08-28T03:30:00.000Z"],
         ["2024-08-21T02:30:00.000Z", "2024-08-27T12:00:00.000Z"],
         ["2024-08-21T02:30:00.000Z", "2024-08-28T03:30:00.000Z"],
+        ["2024-08-27T12:00:00.000Z", "2024-08-28T04:15:00.000Z"],
       ],
     ]);
   });

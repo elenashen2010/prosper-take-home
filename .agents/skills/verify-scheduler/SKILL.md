@@ -53,10 +53,11 @@ Seed data an agent can rely on (verified 2026-10-14):
     mostly 15-minute ladders. The realistic table. With no appointments it gives 37,110
     options. The uncapped Task 2 rule gave 9,999, but Dr. Doe takes at most 2 sessions a
     day, so any start inside a chain of 2 is offered even where a ladder could pack 7.
-  - `midnight`: six slots around New York midnight, `2024-08-20T03:00Z`, `03:15Z`,
-    `13:00Z`, `2024-08-21T02:30Z`, `2024-08-27T12:00Z`, `2024-08-28T03:30Z`. Four UTC days
-    but three New York days (08-19, 08-20, 08-27), so a UTC-day scheduler gives a different
-    answer (9 options instead of 8). The zone proof.
+  - `midnight`: seven slots around New York midnight, `2024-08-20T03:00Z`, `03:15Z`,
+    `13:00Z`, `2024-08-21T02:30Z`, `2024-08-27T12:00Z`, `2024-08-28T03:30Z`, `04:15Z`.
+    Four UTC days and four New York days (08-19, 08-20, 08-27, 08-28), but not the same
+    days, so a UTC-day scheduler gives a different answer (11 options instead of 9). The
+    zone proof. `04:15Z` starts inside the `03:30Z` session, so the two never pair.
   Verification covers the small and full seeds for every recipe unless its feature file
   says the seed does not matter, and the midnight seed where a feature file names it. Any
   other `SEED_SLOTS` value makes the app throw at load; `src/mockSlotOrm.ts` is the only
@@ -67,8 +68,9 @@ Seed data an agent can rely on (verified 2026-10-14):
   - `none` (default): no appointments. Every result above assumes it.
   - `busy`: 11 rows for Dr. Doe in the week of 2024-08-19, 7 of which hold her time
     (`UPCOMING`, `OCCURRED`, `NO_SHOW`). The small seed then gives 2 options, the full seed
-    36,515, and the midnight seed no groups (New York 08-19 and 08-20 are full, the week
-    holds 7 of 8, and 08-27 has no partner left). The capacity proof.
+    36,515, and the midnight seed 1 (New York 08-19 and 08-20 are full and the week holds
+    7 of 8, which leaves only `2024-08-27T12:00Z` + `2024-08-28T04:15Z`). The capacity
+    proof.
   Any other `SEED_APPOINTMENTS` value makes the app throw at load, like `SEED_SLOTS`.
 - Two clinician sets, selected by the `SEED_CLINICIANS` environment variable, which
   `src/mockSlotOrm.ts` reads when it loads. Each adds rows after Dr. Doe's in all three
@@ -167,7 +169,9 @@ the starts whose longest chain reaches the target with its own implementation. I
 compares that to the starts the drive offered. A group whose `clinician.timezone` differs
 from the repository's fails, and so does a slot whose length is not 90 minutes. An offered
 day with nothing expected fails as `no room`. Days the scheduler offered nothing for are
-reported as unoffered and do not fail. Exit 0 when every group and offered day matches, 1
+reported as unoffered and do not fail. A kept start the drive left out is listed as
+`unpairable`, not missing, when it overlaps every kept start on every day the output pairs
+its day with. Exit 0 when every group and offered day matches, 1
 when any has an extra or missing start, a zone mismatch, or a non-90 slot, 2 when the
 output is not clinician groups, a group has no `timezone`, or an appointment has an
 unknown status or type. Writes `optimized.json` with each day's `timezone`, held count,
@@ -185,12 +189,14 @@ that no offered session overlaps a held appointment (`overlap`), that each sessi
 stays within the daily maximum (`daily`), and that each week stays within the weekly
 maximum, counting both sessions when they share a week (`weekly`, `weekly-pair`). The
 closure check groups the offered slots by local day and requires the options to be
-exactly the pairs of those slots 1 to 7 days apart that pass soundness. The completeness
+exactly the pairs of those slots 1 to 7 days apart, with the second starting no earlier
+than the first ends, that pass soundness. The completeness
 check requires a slot day with a free slot and room to be offered exactly when another
 such day 1 to 7 days away can pair with it. Exit 0 when nothing is violated, 1 when
 anything is, 2 when the evidence is not checkable (not groups, no `timezone`, a zone that
 differs from the repository's, no `summary.appointments`, or an unknown status or type).
-Under `none` it prints `vacuous: 0 held` and exits 0. Writes `capacity.json` with the zone,
+Under `none` soundness has nothing to hit, but closure and completeness still run, so
+a drive missing options fails there too. Writes `capacity.json` with the zone,
 maximums, held and freed rows, held counts per day and week, and every problem.
 
 ```
@@ -281,7 +287,7 @@ node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots
 node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/$RUN/assessment-slots/assess-eligible
 node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --seed full --label assess-eligible-full --expect-min 1 --expect-contains 2024-08-19T12:00:00.000Z,2024-09-26T22:30:00.000Z
 node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/$RUN/assessment-slots/assess-eligible-full
-node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --seed midnight --label assess-midnight --expect-min 1 --expect-max 1 --expect-contains 2024-08-20T03:00:00.000Z,2024-08-28T03:30:00.000Z
+node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --seed midnight --label assess-midnight --expect-min 1 --expect-max 1 --expect-contains 2024-08-20T03:00:00.000Z,2024-08-28T03:30:00.000Z,2024-08-28T04:15:00.000Z
 node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/$RUN/assessment-slots/assess-midnight
 node .agents/skills/verify-scheduler/scripts/optimized.js .verify-evidence/$RUN/assessment-slots/assess-midnight
 node .agents/skills/verify-scheduler/scripts/doctor.js --appointments busy --out .verify-evidence/$RUN/doctor-busy.json

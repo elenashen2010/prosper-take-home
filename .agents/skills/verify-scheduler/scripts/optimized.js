@@ -18,6 +18,8 @@
  * differs from the repository's fails, and so does a slot whose length is not the 90 minutes the scheduler
  * packs with. An offered day whose expected set is empty fails as "no room". Days the scheduler did not offer
  * at all are reported as "unoffered" (pairing or capacity may have excluded them) and do not fail the check.
+ * A kept start missing from an offered day is excused as "unpairable" when every kept start on every day the
+ * output pairs with that day overlaps it in time, since no option could hold both sessions.
  * Writes optimized.json next to output.json with each day's held count, room, and target. Exit 0 when no
  * group fails and no offered day has an extra or missing start, 1 when any does, 2 when the evidence is not
  * the grouped shape, a group has no timezone, or an appointment has an unknown status or type.
@@ -115,12 +117,21 @@ for (const group of output) {
     failures++;
   }
   const offeredByDay = new Map();
+  const partnerDays = new Map();
   for (const { first, second } of group.options) {
+    const optionDays = [];
     for (const slot of [first, second]) {
       if (slot.clinicianId !== clinicianId) continue;
       const day = localDayByOffset(slot.date, timezone);
+      optionDays.push(day);
       if (!offeredByDay.has(day)) offeredByDay.set(day, new Set());
       offeredByDay.get(day).add(slot.date);
+    }
+    if (optionDays.length === 2) {
+      for (const [day, other] of [optionDays, [...optionDays].reverse()]) {
+        if (!partnerDays.has(day)) partnerDays.set(day, new Set());
+        partnerDays.get(day).add(other);
+      }
     }
   }
   let model;
@@ -142,19 +153,28 @@ for (const group of output) {
     if (!allByDay.has(day)) allByDay.set(day, []);
     allByDay.get(day).push({ iso, start: slot.date.getTime(), end: slot.date.getTime() + SESSION_MS });
   }
-  for (const [day, intervals] of [...allByDay].sort()) {
+  const days = [...allByDay].sort().map(([day, intervals]) => {
     const free = intervals.filter((iv) => !model.held.some((h) => iv.start < h.end && h.start < iv.end));
     const held = model.heldDay[day] || 0;
     const heldInWeek = model.heldWeek[weekByOffset(day)] || 0;
     const room = Math.min(clinician.maxDailyAppointments - held, clinician.maxWeeklyAppointments - heldInWeek);
-    const { target, kept: expected } = keptStarts(free, room);
+    return { day, intervals, free, held, heldInWeek, room, ...keptStarts(free, room) };
+  });
+  const keptOn = new Map(days.map((d) => [d.day, d.kept]));
+  const pairable = (day, iso) =>
+    [...(partnerDays.get(day) || [])].some((other) =>
+      [...(keptOn.get(other) || [])].some((o) => Math.abs(Date.parse(o) - Date.parse(iso)) >= SESSION_MS),
+    );
+  for (const { day, intervals, free, held, heldInWeek, room, target, kept: expected } of days) {
     const offered = offeredByDay.get(day);
     const entry = { clinicianId, timezone, day, slots: intervals.length, free: free.length, held, heldInWeek, room, target, expectedKept: expected.size };
     if (!offered) {
       entry.status = "unoffered";
     } else {
       entry.extra = [...offered].filter((d) => !expected.has(d)).sort();
-      entry.missing = [...expected].filter((d) => !offered.has(d)).sort();
+      const absent = [...expected].filter((d) => !offered.has(d)).sort();
+      entry.missing = absent.filter((d) => pairable(day, d));
+      entry.unpairable = absent.filter((d) => !pairable(day, d));
       if (expected.size === 0) entry.reason = "no room";
       entry.status = entry.extra.length || entry.missing.length ? "FAIL" : "ok";
       if (entry.status === "FAIL") failures++;

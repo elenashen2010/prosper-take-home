@@ -9,14 +9,15 @@
  *
  * Reads the scheduler's output as groups `{ clinician: { id, timezone }, options: [{ first, second }] }[]`.
  * Each pair must be one clinician (the group's clinician), on different days of the clinician's calendar
- * (`clinician.timezone`), `second` later than `first`, at most --max-gap-days apart (default 7). Writes
+ * (`clinician.timezone`), `second` later than `first`, at most --max-gap-days apart (default 7), and `second`
+ * starting no earlier than the 90-minute `first` ends. Writes
  * pairs.json next to output.json: every pair when there are at most 200, otherwise only the invalid ones
  * (first 1000) plus totals. Prints the first 20 invalid pairs and the totals. Exit 0 when every pair is
  * valid; 1 when any pair violates; 2 when the output is not groups or a group has no clinician.timezone.
  */
 const fs = require("fs");
 const path = require("path");
-const { localDayByOffset } = require("./common");
+const { localDayByOffset, HARNESS_SESSION_MINUTES } = require("./common");
 
 const argv = process.argv.slice(2);
 let maxGap = 7;
@@ -66,6 +67,8 @@ const utcMidnight = (day) => {
   return Date.UTC(y, m - 1, d);
 };
 
+const SESSION_MS = HARNESS_SESSION_MINUTES.ASSESSMENT_SESSION_1 * 60000;
+
 const pairs = output
   .flatMap((g) => g.options.map((o) => [o.first, o.second, g.clinician]))
   .map(([a, b, { id: groupClinicianId, timezone }], index) => {
@@ -80,6 +83,7 @@ const pairs = output
     if (gapDays === 0) problems.push(`same local day ${firstDay} (${timezone})`);
     if (gapDays < 0) problems.push("second starts on an earlier local day than first");
     if (gapDays > maxGap) problems.push(`${gapDays} local days apart (max ${maxGap})`);
+    if (Date.parse(b.date) < Date.parse(a.date) + SESSION_MS) problems.push("sessions overlap");
     return { index, first: a.date, second: b.date, clinicianId: a.clinicianId, timezone, firstDay, secondDay, gapDays, problems };
   });
 
