@@ -47,6 +47,10 @@ describe("seedSlotSetFromEnv", () => {
     expect(() => seedSlotSetFromEnv("huge")).toThrow('SEED_SLOTS must be one of small, full, midnight, got "huge"');
   });
 
+  it("rejects a name every object inherits", () => {
+    expect(() => seedSlotSetFromEnv("constructor")).toThrow('SEED_SLOTS must be one of small, full, midnight, got "constructor"');
+  });
+
   it("seeds 458 rows for the seed clinician when loaded with SEED_SLOTS=full", () => {
     const rows = seededRowsWith("full", (fresh) => fresh.slotRepository.findByClinician(SEED_CLINICIAN_ID));
     expect(rows).toHaveLength(458);
