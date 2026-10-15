@@ -47,7 +47,7 @@ export function seedSetFromEnv<K extends string>(
   value: string | undefined,
 ): K {
   if (value === undefined || value === "") return fallback;
-  if (value in sets) return value as K;
+  if (Object.prototype.hasOwnProperty.call(sets, value)) return value as K;
   throw new Error(`${variable} must be one of ${Object.keys(sets).join(", ")}, got "${value}"`);
 }
 
