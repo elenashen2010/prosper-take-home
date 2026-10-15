@@ -19,11 +19,11 @@
  *               two sessions has held + sessions in that week <= maxWeeklyAppointments ("weekly", or
  *               "weekly-pair" when both sessions fall in that week).
  *   closure     with S[d] the offered slots of local day d, the options are exactly the pairs (a in S[d1],
- *               b in S[d2]) with d2 1 to 7 days after d1 that pass soundness.
+ *               b in S[d2]) with d2 1 to 7 days after d1, b starting no earlier than a ends, that pass soundness.
  *   completeness a raw-slot day with a slot clear of held intervals and room >= 1 is offered iff another such
  *               day 1 to 7 days away passes the daily and weekly checks with it.
- * Writes capacity.json next to output.json and prints a totals line. Under an appointment set with no held
- * rows it prints "vacuous: 0 held" and exits 0.
+ * Writes capacity.json next to output.json and prints a totals line. With no held rows soundness is trivially
+ * met, but closure and completeness still run.
  * Exit 0 when nothing is violated; 1 when any rule, closure, or completeness check fails; 2 when the evidence
  * is not checkable (not groups, no clinician.timezone, a zone that differs from the repository's, no
  * summary.appointments, an appointment with an unknown status or type).
@@ -103,11 +103,6 @@ for (const g of output) {
 
 const totalHeld = groups.reduce((n, g) => n + g.model.held.length, 0);
 const reportPath = path.join(dir, "capacity.json");
-if (totalHeld === 0) {
-  fs.writeFileSync(reportPath, JSON.stringify({ seed, appointments, vacuous: true, held: 0 }, null, 2));
-  console.log(`seed: ${seed}, appointments: ${appointments}, vacuous: 0 held, report: ${reportPath}`);
-  process.exit(0);
-}
 
 const report = [];
 let problems = 0;
@@ -175,6 +170,7 @@ for (const { clinician, zone, model, options } of groups) {
       if (gap < 1 || gap > MAX_GAP_DAYS) continue;
       for (const a of offeredByDay.get(d1)) {
         for (const b of offeredByDay.get(d2)) {
+          if (Date.parse(b) < Date.parse(a) + SESSION_MS) continue;
           if (violationsOf([a, b]).length === 0) expectedKeys.add(`${a}|${b}`);
         }
       }

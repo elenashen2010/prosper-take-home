@@ -267,6 +267,12 @@ describe("findAvailableSlots", () => {
     ]);
   });
 
+  it("never pairs a late session with a next-day start it runs into, and pairs one that touches its end", () => {
+    expect(pairsForSlots(["2024-08-20T03:30:00.000Z", "2024-08-20T04:15:00.000Z", "2024-08-20T05:00:00.000Z"])).toEqual([
+      [["2024-08-20T03:30:00.000Z", "2024-08-20T05:00:00.000Z"]],
+    ]);
+  });
+
   it("does not pair slots 8 New York days apart that are 7 UTC days apart", () => {
     expect(pairsForSlots(["2024-08-21T03:30:00.000Z", "2024-08-28T12:00:00.000Z"])).toEqual([]);
   });
@@ -310,7 +316,7 @@ describe("findAvailableSlots", () => {
     expect(pairsOf(groups[0])).toEqual([["2024-08-20T08:00:00.000Z", "2024-08-20T20:00:00.000Z"]]);
   });
 
-  it("offers the midnight seed's 8 options through the seeded repositories", () => {
+  it("offers the midnight seed's 9 options through the seeded repositories", () => {
     expect(seededPairsWith({ SEED_SLOTS: "midnight" })).toEqual([
       [
         ["2024-08-20T03:00:00.000Z", "2024-08-20T13:00:00.000Z"],
@@ -321,6 +327,7 @@ describe("findAvailableSlots", () => {
         ["2024-08-20T13:00:00.000Z", "2024-08-28T03:30:00.000Z"],
         ["2024-08-21T02:30:00.000Z", "2024-08-27T12:00:00.000Z"],
         ["2024-08-21T02:30:00.000Z", "2024-08-28T03:30:00.000Z"],
+        ["2024-08-27T12:00:00.000Z", "2024-08-28T04:15:00.000Z"],
       ],
     ]);
   });

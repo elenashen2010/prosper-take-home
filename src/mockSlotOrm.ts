@@ -63,6 +63,7 @@ export const MOCK_SLOT_DATA_MIDNIGHT: readonly { length: number; date: string }[
   { length: 90, date: "2024-08-21T02:30:00.000Z" },
   { length: 90, date: "2024-08-27T12:00:00.000Z" },
   { length: 90, date: "2024-08-28T03:30:00.000Z" },
+  { length: 90, date: "2024-08-28T04:15:00.000Z" },
 ];
 
 export const SeedSlotSets = { small: MOCK_SLOT_DATA_SMALL, full: MOCK_SLOT_DATA, midnight: MOCK_SLOT_DATA_MIDNIGHT } as const;
@@ -85,7 +86,7 @@ export function seedSetFromEnv<K extends string>(
 
 /**
  * Which raw slot set seeds the table: SEED_SLOTS=small (default, the README example), full (the 458-row dump),
- * or midnight (six starts around New York midnight).
+ * or midnight (seven starts around New York midnight).
  */
 export function seedSlotSetFromEnv(value = process.env.SEED_SLOTS): SeedSlotSet {
   return seedSetFromEnv("SEED_SLOTS", SeedSlotSets, "small", value);

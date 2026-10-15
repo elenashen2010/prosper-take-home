@@ -64,9 +64,9 @@ describe("seedSlotSetFromEnv", () => {
     expect(rows).toHaveLength(458);
   });
 
-  it("seeds the six midnight rows for the seed clinician when loaded with SEED_SLOTS=midnight", () => {
+  it("seeds the seven midnight rows for the seed clinician when loaded with SEED_SLOTS=midnight", () => {
     const rows = seededRowsWith("midnight", (fresh) => fresh.slotRepository.findByClinician(SEED_CLINICIAN_ID));
-    expect(rows).toHaveLength(6);
+    expect(rows).toHaveLength(7);
     expect(rows[0].date.toISOString()).toBe("2024-08-20T03:00:00.000Z");
   });
 });
