@@ -18,9 +18,9 @@ Read this index before driving, then use the matching feature file as the recipe
   - `small` (default): six ninety-minute slots on four days, `2024-08-19T12:00Z`,
     `12:15Z`, `2024-08-21T12:00Z`, `15:00Z`, `2024-08-22T15:00Z`, `2024-08-28T12:15Z`.
   - `full`: the 458-row dump, 27 days from 2024-08-19 to 2024-09-26, 15-minute ladders.
-  - `midnight`: six ninety-minute slots around New York midnight, `2024-08-20T03:00Z`,
-    `03:15Z`, `13:00Z`, `2024-08-21T02:30Z`, `2024-08-27T12:00Z`, `2024-08-28T03:30Z`.
-    Four UTC days, three New York days.
+  - `midnight`: seven ninety-minute slots around New York midnight, `2024-08-20T03:00Z`,
+    `03:15Z`, `13:00Z`, `2024-08-21T02:30Z`, `2024-08-27T12:00Z`, `2024-08-28T03:30Z`,
+    `04:15Z`. Four UTC days and four New York days, not the same four.
   No 60-minute slots in any set.
 - Her appointments come from one of two sets, picked by `--appointments` on drive.js and
   doctor.js (`SEED_APPOINTMENTS` for `npm run dev`):

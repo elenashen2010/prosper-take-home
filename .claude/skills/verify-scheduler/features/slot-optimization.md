@@ -56,7 +56,7 @@ Preconditions:
   `clinician-capacity.md`. Run it on the small-seed drive too (4 days, all ok) and on the
   `assess-midnight` drive from the assessment-slots recipe
   (`node .agents/skills/verify-scheduler/scripts/optimized.js .verify-evidence/$RUN/assessment-slots/assess-midnight`):
-  exit 0 over 3 offered New York days, where the `03:00Z` and `03:15Z` starts share the
+  exit 0 over 4 offered New York days, where the `03:00Z` and `03:15Z` starts share the
   08-19 evening and are both kept because the run is too short for two sessions.
 - **Proof.** `.verify-evidence/$RUN/slot-optimization/` holds one directory per label with
   the four evidence files, plus `optimized.json` where optimized.js ran.

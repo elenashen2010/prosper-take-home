@@ -12,7 +12,10 @@ export const MAX_ASSESSMENT_DAY_GAP = 7;
 
 const ASSESSMENT_SESSION_MINUTES = APPOINTMENT_MINUTES.ASSESSMENT_SESSION_1;
 
-/** Two sessions with one psychologist, `first` on an earlier local day than `second`, 1 to MAX_ASSESSMENT_DAY_GAP days apart. */
+/**
+ * Two sessions with one psychologist, `first` on an earlier local day than `second`, 1 to MAX_ASSESSMENT_DAY_GAP days
+ * apart, with `second` starting no earlier than `first` ends.
+ */
 export interface AssessmentOption {
   readonly first: AvailableAppointmentSlot;
   readonly second: AvailableAppointmentSlot;
@@ -45,8 +48,8 @@ const seededRepositories: SchedulerRepositories = {
  * Days are the clinician's local days. A day is offered only while the clinician has room for one more session
  * that day and that week; a start is offered only if it overlaps no held appointment and keeps the day's
  * reachable number of sessions bookable (README Task 2, capped by that room); a pair inside one week needs room
- * for two (README Task 3). Clinicians with no valid pair are omitted. One slot query and one appointment query
- * per eligible psychologist.
+ * for two (README Task 3); a pair's second session never starts before its first ends. Clinicians with no valid
+ * pair are omitted. One slot query and one appointment query per eligible psychologist.
  */
 export function findAvailableSlots(
   patient: Patient,
@@ -70,11 +73,12 @@ function pairAssessmentSlots(slots: readonly AvailableAppointmentSlot[], capacit
   const dayEntries = [...capacity.bookableDays(slots, ASSESSMENT_SESSION_MINUTES)];
   dayEntries.forEach(([day, firsts], i) => {
     for (const first of firsts) {
+      const firstEnd = first.date.getTime() + ASSESSMENT_SESSION_MINUTES * 60_000;
       for (let j = i + 1; j < dayEntries.length; j++) {
         const [laterDay, seconds] = dayEntries[j];
         if (daysBetween(day, laterDay) > MAX_ASSESSMENT_DAY_GAP) break;
         if (!capacity.canBook([day, laterDay])) continue;
-        for (const second of seconds) options.push({ first, second });
+        for (const second of seconds) if (second.date.getTime() >= firstEnd) options.push({ first, second });
       }
     }
   });
