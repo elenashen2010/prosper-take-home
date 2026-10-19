@@ -25,7 +25,7 @@ For example, `SEED_SLOTS=full SEED_APPOINTMENTS=busy npm run dev` runs the full 
 ## How it works
 
 1. The clinician repository returns psychologists who serve the patient's state and accept their insurance.
-2. For each one, the scheduler loads their slots and appointments, one query each.
+2. One query loads every matching clinician's slots that start after `now`, and one more loads their appointments. That is three queries in all, however many clinicians match.
 3. It buckets slots by the clinician's local day. It drops slots that overlap a held appointment, and days with no room under the daily or weekly cap.
 4. Each day keeps only the starts that leave the most sessions bookable (Task 2). The target is capped by that day's remaining room, so a day with room for one more session offers every free start.
 5. It pairs slots on different local days 1 to 7 days apart. A pair in one week needs weekly room for both sessions.
@@ -40,6 +40,7 @@ The prompt leaves these open. Each lives in one constant or table, so changing i
 - Weeks start on Monday (`WEEK_STARTS_ON`).
 - `UPCOMING`, `OCCURRED`, and `NO_SHOW` appointments hold the clinician's time. `RE_SCHEDULED`, `CANCELLED`, and `LATE_CANCELLATION` free it (`HOLDS_CLINICIAN_TIME`).
 - A held appointment blocks 90 minutes for assessments and 60 for therapy, whatever the slot length.
+- Only slots that start after `now` are offered. Appointments before `now` still count toward their day and week. `findAvailableSlots(patient, repositories, now)` defaults `now` to `SEED_NOW`, the moment the slot dump was taken (2024-08-15), so the seeded demo stays stable. A live caller passes `new Date()`.
 
 ## Mock ORM pattern
 

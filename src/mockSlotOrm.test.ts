@@ -124,6 +124,22 @@ describe("createMockSlotRepository", () => {
     expect(idsOf(repo.findByClinician("c"))).toEqual(["c-2024-08-19T12:00:00.000Z"]);
   });
 
+  it("batches several clinicians' rows that start strictly after a moment, in table order", () => {
+    const repo = createMockSlotRepository([
+      makeSlot({ clinicianId: "a", date: new Date("2024-08-21T12:00:00.000Z") }),
+      makeSlot({ clinicianId: "b", date: new Date("2024-08-20T12:00:00.000Z") }),
+      makeSlot({ clinicianId: "c", date: new Date("2024-08-21T12:00:00.000Z") }),
+      makeSlot({ clinicianId: "a", date: new Date("2024-08-19T12:00:00.000Z") }),
+      makeSlot({ clinicianId: "b", date: new Date("2024-08-22T12:00:00.000Z") }),
+    ]);
+    expect(idsOf(repo.findByCliniciansStartingAfter(["a", "b"], new Date("2024-08-20T12:00:00.000Z")))).toEqual([
+      "a-2024-08-21T12:00:00.000Z",
+      "b-2024-08-22T12:00:00.000Z",
+    ]);
+    expect(repo.findByCliniciansStartingAfter([], new Date(0))).toEqual([]);
+    expect(repo.findByCliniciansStartingAfter(["nobody"], new Date(0))).toEqual([]);
+  });
+
   it("rejects a clinician row in place of a clinician id at compile time", () => {
     const typeChecksOnly = () => {
       // @ts-expect-error a clinician row is not a clinician id

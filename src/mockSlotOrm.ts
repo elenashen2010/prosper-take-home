@@ -11,14 +11,31 @@ export interface SlotRepository {
    * Rows in table order. Returns [] for an unknown clinician. Returned rows are the table's own objects, not copies.
    */
   findByClinician(clinicianId: AvailableAppointmentSlot["clinicianId"]): AvailableAppointmentSlot[];
+  /**
+   * SELECT * FROM "AvailableSlot" WHERE "clinicianId" = ANY($clinicianIds) AND "date" > $after
+   *
+   * One query for any number of clinicians. Rows in table order. Returns [] for no ids. Returned rows are the
+   * table's own objects, not copies.
+   */
+  findByCliniciansStartingAfter(
+    clinicianIds: readonly AvailableAppointmentSlot["clinicianId"][],
+    after: Date,
+  ): AvailableAppointmentSlot[];
 }
 
 export function createMockSlotRepository(rows: readonly AvailableAppointmentSlot[]): SlotRepository {
   const table: readonly AvailableAppointmentSlot[] = [...rows];
   return {
     findByClinician: (clinicianId) => table.filter((s) => s.clinicianId === clinicianId),
+    findByCliniciansStartingAfter: (clinicianIds, after) => {
+      const ids = new Set(clinicianIds);
+      return table.filter((s) => ids.has(s.clinicianId) && s.date.getTime() > after.getTime());
+    },
   };
 }
+
+/** When the seeded tables were captured: the createdAt of the README's slot dump, before every seeded slot. */
+export const SEED_NOW = new Date("2024-08-15T14:45:15.462Z");
 
 export const SEED_CLINICIAN_ID = "9c516382-c5b2-4677-a7ac-4e100fa35bdd";
 export const SEED_CLINICIAN_TIMEZONE = parseTimeZone("America/New_York");

@@ -10,12 +10,23 @@ export interface AppointmentRepository {
    * own objects, not copies.
    */
   findByClinician(clinicianId: Appointment["clinicianId"]): Appointment[];
+  /**
+   * SELECT * FROM "Appointment" WHERE "clinicianId" = ANY($clinicianIds)
+   *
+   * One query for any number of clinicians, every status and every date, as findByClinician. Rows in table
+   * order. Returns [] for no ids. Returned rows are the table's own objects, not copies.
+   */
+  findByClinicians(clinicianIds: readonly Appointment["clinicianId"][]): Appointment[];
 }
 
 export function createMockAppointmentRepository(rows: readonly Appointment[]): AppointmentRepository {
   const table: readonly Appointment[] = [...rows];
   return {
     findByClinician: (clinicianId) => table.filter((a) => a.clinicianId === clinicianId),
+    findByClinicians: (clinicianIds) => {
+      const ids = new Set(clinicianIds);
+      return table.filter((a) => ids.has(a.clinicianId));
+    },
   };
 }
 

@@ -127,6 +127,18 @@ describe("createMockAppointmentRepository", () => {
     expect(repo.findByClinician("nobody")).toEqual([]);
   });
 
+  it("batches several clinicians' rows in table order, whatever their status or date", () => {
+    const repo = createMockAppointmentRepository([
+      makeAppointment({ id: "a1", clinicianId: "a", status: "CANCELLED", scheduledFor: new Date("2020-01-01T00:00:00.000Z") }),
+      makeAppointment({ id: "c1", clinicianId: "c" }),
+      makeAppointment({ id: "b1", clinicianId: "b" }),
+      makeAppointment({ id: "a2", clinicianId: "a" }),
+    ]);
+    expect(idsOf(repo.findByClinicians(["a", "b"]))).toEqual(["a1", "b1", "a2"]);
+    expect(repo.findByClinicians([])).toEqual([]);
+    expect(repo.findByClinicians(["nobody"])).toEqual([]);
+  });
+
   it("ignores rows pushed to the caller's array after construction", () => {
     const seed = [makeAppointment({ id: "original", clinicianId: "a" })];
     const repo = createMockAppointmentRepository(seed);
