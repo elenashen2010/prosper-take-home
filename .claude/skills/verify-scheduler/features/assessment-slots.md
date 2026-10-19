@@ -51,15 +51,17 @@ Preconditions:
   With one seed clinician there is exactly one group (`Jane Doe`, `America/New_York`); the
   unit tests with two psychologists in `src/schedulerApi.test.ts` cover multi-group
   ordering and a second zone until the seed has a second eligible clinician.
-- **Days on the clinician's calendar.** Drive the midnight seed, whose six slots fall on
-  four UTC days but three New York days. Run
-  `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --seed midnight --label assess-midnight --expect-min 1 --expect-max 1 --expect-contains 2024-08-20T03:00:00.000Z,2024-08-28T03:30:00.000Z`
+- **Days on the clinician's calendar.** Drive the midnight seed, whose seven slots fall on
+  four UTC days and four New York days that are not the same four. Run
+  `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --seed midnight --label assess-midnight --expect-min 1 --expect-max 1 --expect-contains 2024-08-20T03:00:00.000Z,2024-08-28T03:30:00.000Z,2024-08-28T04:15:00.000Z`
   then `node .agents/skills/verify-scheduler/scripts/pairs.js .verify-evidence/$RUN/assessment-slots/assess-midnight`.
-  Drive exit 0 with one group; pairs.js exit 0 with `pairs: 8, invalid: 0`, and the listed
+  Drive exit 0 with one group; pairs.js exit 0 with `pairs: 9, invalid: 0`, and the listed
   pairs include `2024-08-20T03:00:00.000Z` + `2024-08-20T13:00:00.000Z` (one UTC day, two
   New York days, `firstDay` `2024-08-19`) and exclude `2024-08-20T13:00:00.000Z` +
-  `2024-08-21T02:30:00.000Z` (two UTC days, one New York day). A UTC-day scheduler gives 9
-  options here, not 8.
+  `2024-08-21T02:30:00.000Z` (two UTC days, one New York day). They include
+  `2024-08-27T12:00:00.000Z` + `2024-08-28T04:15:00.000Z` and exclude
+  `2024-08-28T03:30:00.000Z` + `2024-08-28T04:15:00.000Z`, which are 23:30 and 00:15 in New
+  York, two days but overlapping sessions. A UTC-day scheduler gives 11 options here, not 9.
 - **State miss.** Same insurance, state `TX`. Seed-independent; run once. Run
   `node .agents/skills/verify-scheduler/scripts/drive.js --feature assessment-slots --run $RUN --label assess-state-miss --state TX --expect-max 0`.
   Exit 0 and `count` is 0.
@@ -75,7 +77,7 @@ Preconditions:
 - As of 2026-10-14 (after README Tasks 1 to 3 and the clinician time zone column landed)
   every journey here passes with the default `none` appointment set. The small seed gives
   exactly the README's 11 options in README order, the full seed gives 37,110 options, the
-  midnight seed gives 8, and pairs.js reports 0 invalid on all three.
+  midnight seed gives 9, and pairs.js reports 0 invalid on all three.
 - The output is an array of clinician groups, so `count` is the number of clinicians with
   options, not the number of options. Read `pairs.json` for the option count. pairs.js
   reads the grouped shape only, and needs `clinician.timezone` on every group; any other

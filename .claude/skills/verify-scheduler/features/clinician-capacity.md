@@ -73,14 +73,17 @@ Preconditions:
   offered. The row at `2024-08-21T01:00Z` is 21:00 on 08-20 in New York, so 08-21 holds 1,
   not 2. `capacity.json` shows `heldDay` `"2024-08-20": 2` and `"2024-08-21": 1`.
 - **Midnight seed.** Run
-  `node .agents/skills/verify-scheduler/scripts/drive.js --feature clinician-capacity --run $RUN --seed midnight --appointments busy --label cap-midnight-busy --expect-max 0`
-  then `capacity.js` on its directory. Both exit 0 with no groups. New York 08-19 and 08-20
-  are full, week 2024-08-19 holds 7, and 08-27 has no partner left. capacity.js reports
-  `completeness misses: 0`, which confirms that no day should have been offered.
+  `node .agents/skills/verify-scheduler/scripts/drive.js --feature clinician-capacity --run $RUN --seed midnight --appointments busy --label cap-midnight-busy --expect-min 1 --expect-max 1 --expect-contains 2024-08-27T12:00:00.000Z,2024-08-28T04:15:00.000Z --expect-absent 2024-08-28T03:30:00.000Z`
+  then `capacity.js` on its directory. Both exit 0 with one group of one option,
+  `2024-08-27T12:00:00.000Z` + `2024-08-28T04:15:00.000Z`. New York 08-19 and 08-20 are
+  full and week 2024-08-19 holds 7, so 08-27 can only pair with 08-28, and its `03:30Z`
+  start overlaps the 08-28 session. capacity.js reports `completeness misses: 0`, and
+  `optimized.json` lists `2024-08-28T03:30:00.000Z` under 08-27's `unpairable`.
 - **Empty calendar (`cap-none`).** Run
   `node .agents/skills/verify-scheduler/scripts/drive.js --feature clinician-capacity --run $RUN --label cap-none --expect-min 1 --expect-max 1 --expect-contains 2024-08-19T12:00:00.000Z,2024-08-21T15:00:00.000Z`
   then `pairs.js` and `capacity.js` on it. The drive exits 0, pairs.js reports `pairs: 11`,
-  and capacity.js prints `vacuous: 0 held` and exits 0.
+  and capacity.js prints `held: 0, problems: 0` with no closure or completeness misses and
+  exits 0.
 - **Crafted negatives.** Copy `output.json` and `summary.json` from `cap-busy` into a scratch
   directory, edit `output.json`, and run capacity.js on the copy. Never edit the real
   evidence. Adding the option `2024-08-21T12:00:00.000Z` + `2024-08-22T15:00:00.000Z` exits 1
@@ -118,7 +121,8 @@ Preconditions:
 - An appointment counts on the local day it starts. Its whole interval blocks overlapping
   slots, even when it runs past midnight.
 - capacity.js needs `summary.appointments`, so evidence from a drive.js without
-  `--appointments` support exits 2. Under `none` it checks nothing and prints
-  `vacuous: 0 held`. Run it on busy evidence for proof.
+  `--appointments` support exits 2. Under `none` soundness has nothing to check, but
+  closure and completeness still catch a drive that drops options. Run it on busy evidence
+  to prove soundness.
 - The full busy drive writes about 22 MB of `output.json` for 36,515 options. capacity.js
   checks it in under a second.

@@ -1,7 +1,7 @@
 import { parseTimeZone } from "./localDay";
 import { AppointmentRepository, createMockAppointmentRepository, seedAppointmentSet } from "./mockAppointmentOrm";
 import { createMockClinicianRepository } from "./mockClinicianOrm";
-import { createMockSlotRepository, seedSlotSet, SlotRepository } from "./mockSlotOrm";
+import { createMockSlotRepository, SEED_NOW, seedSlotSet, SlotRepository } from "./mockSlotOrm";
 import { ClinicianAssessmentOptions, findAvailableSlots, SchedulerRepositories } from "./schedulerApi";
 import { Appointment, AvailableAppointmentSlot } from "./starter-code/appointment";
 import { Clinician } from "./starter-code/clinician";
@@ -76,7 +76,7 @@ const repositories = (
   appointments: readonly Appointment[] = [],
 ): SchedulerRepositories => ({
   clinicians: createMockClinicianRepository(clinicians),
-  slots: createMockSlotRepository(slots, clinicians),
+  slots: createMockSlotRepository(slots),
   appointments: createMockAppointmentRepository(appointments),
 });
 
@@ -208,45 +208,78 @@ describe("findAvailableSlots", () => {
     expect(findAvailableSlots(patient, repositories([clinician], reversed)).map(pairsOf)).toEqual([README_PAIRS]);
   });
 
-  it("queries slots once per eligible psychologist and never by day", () => {
+  it("makes one slot query and one appointment query for all eligible psychologists together", () => {
     const clinicians = [
       makeClinician({ id: "therapist", clinicianType: "THERAPIST" }),
       makeClinician({ id: "psychA" }),
       makeClinician({ id: "psychB" }),
     ];
     const isos = ["2024-08-19T12:00:00.000Z", "2024-08-21T12:00:00.000Z"];
-    const inner = createMockSlotRepository(
-      [...slotsAt("therapist", isos), ...slotsAt("psychA", isos), ...slotsAt("psychB", isos)],
-      clinicians,
-    );
-    const calls: Record<string, number> = {};
-    let dayQueries = 0;
+    const inner = createMockSlotRepository([...slotsAt("therapist", isos), ...slotsAt("psychA", isos), ...slotsAt("psychB", isos)]);
+    const slotCalls: [readonly string[], string][] = [];
     const counting: SlotRepository = {
-      findByClinician: (id, days) => {
-        calls[id] = (calls[id] ?? 0) + 1;
-        return inner.findByClinician(id, days);
+      findByClinician: () => {
+        throw new Error("the scheduler must batch its slot query");
       },
-      findSlotDaysByClinician: (id) => {
-        dayQueries++;
-        return inner.findSlotDaysByClinician(id);
+      findByCliniciansStartingAfter: (ids, after) => {
+        slotCalls.push([ids, after.toISOString()]);
+        return inner.findByCliniciansStartingAfter(ids, after);
       },
     };
-    const appointmentCalls: Record<string, number> = {};
+    const appointmentCalls: (readonly string[])[] = [];
     const countingAppointments: AppointmentRepository = {
-      findByClinician: (id) => {
-        appointmentCalls[id] = (appointmentCalls[id] ?? 0) + 1;
+      findByClinician: () => {
+        throw new Error("the scheduler must batch its appointment query");
+      },
+      findByClinicians: (ids) => {
+        appointmentCalls.push(ids);
         return [];
       },
     };
-    const groups = findAvailableSlots(patient, {
-      clinicians: createMockClinicianRepository(clinicians),
-      slots: counting,
-      appointments: countingAppointments,
-    });
+    const now = new Date("2024-08-18T00:00:00.000Z");
+    const groups = findAvailableSlots(
+      patient,
+      { clinicians: createMockClinicianRepository(clinicians), slots: counting, appointments: countingAppointments },
+      now,
+    );
     expect(groups.map((g) => g.clinician.id)).toEqual(["psychA", "psychB"]);
-    expect(calls).toEqual({ psychA: 1, psychB: 1 });
-    expect(dayQueries).toBe(0);
-    expect(appointmentCalls).toEqual({ psychA: 1, psychB: 1 });
+    expect(slotCalls).toEqual([[["psychA", "psychB"], now.toISOString()]]);
+    expect(appointmentCalls).toEqual([["psychA", "psychB"]]);
+  });
+
+  it("offers only slots that start after now, including later the same day", () => {
+    const isos = ["2024-08-19T12:00:00.000Z", "2024-08-19T15:00:00.000Z", "2024-08-21T12:00:00.000Z", "2024-08-22T12:00:00.000Z"];
+    const pairsAt = (now: string) =>
+      findAvailableSlots(patient, repositories([makeClinician({ id: "psych" })], slotsAt("psych", isos)), new Date(now)).map(pairsOf);
+    expect(pairsAt("2024-08-19T12:00:00.000Z")).toEqual([
+      [
+        ["2024-08-19T15:00:00.000Z", "2024-08-21T12:00:00.000Z"],
+        ["2024-08-19T15:00:00.000Z", "2024-08-22T12:00:00.000Z"],
+        ["2024-08-21T12:00:00.000Z", "2024-08-22T12:00:00.000Z"],
+      ],
+    ]);
+    expect(pairsAt("2024-08-21T12:00:00.000Z")).toEqual([]);
+  });
+
+  it("still counts appointments before now toward their week", () => {
+    const held = appointmentsAt("psych", ["2024-08-19T12:00:00.000Z"]);
+    const isos = ["2024-08-21T12:00:00.000Z", "2024-08-22T12:00:00.000Z", "2024-08-27T12:00:00.000Z"];
+    const groups = findAvailableSlots(
+      patient,
+      repositories([makeClinician({ id: "psych", maxWeeklyAppointments: 2 })], slotsAt("psych", isos), held),
+      new Date("2024-08-20T00:00:00.000Z"),
+    );
+    expect(groups.map(pairsOf)).toEqual([
+      [
+        ["2024-08-21T12:00:00.000Z", "2024-08-27T12:00:00.000Z"],
+        ["2024-08-22T12:00:00.000Z", "2024-08-27T12:00:00.000Z"],
+      ],
+    ]);
+  });
+
+  it("defaults now to the seeded snapshot, before every seeded slot", () => {
+    expect(SEED_NOW.toISOString()).toBe("2024-08-15T14:45:15.462Z");
+    expect(seededPairsWith({})).toEqual([README_PAIRS]);
   });
 
   it("hides the README ladder's inner starts before pairing", () => {
@@ -264,6 +297,12 @@ describe("findAvailableSlots", () => {
   it("pairs two slots that share a UTC day but not a New York day", () => {
     expect(pairsForSlots(["2024-08-20T03:00:00.000Z", "2024-08-20T13:00:00.000Z"])).toEqual([
       [["2024-08-20T03:00:00.000Z", "2024-08-20T13:00:00.000Z"]],
+    ]);
+  });
+
+  it("never pairs a late session with a next-day start it runs into, and pairs one that touches its end", () => {
+    expect(pairsForSlots(["2024-08-20T03:30:00.000Z", "2024-08-20T04:15:00.000Z", "2024-08-20T05:00:00.000Z"])).toEqual([
+      [["2024-08-20T03:30:00.000Z", "2024-08-20T05:00:00.000Z"]],
     ]);
   });
 
@@ -310,7 +349,7 @@ describe("findAvailableSlots", () => {
     expect(pairsOf(groups[0])).toEqual([["2024-08-20T08:00:00.000Z", "2024-08-20T20:00:00.000Z"]]);
   });
 
-  it("offers the midnight seed's 8 options through the seeded repositories", () => {
+  it("offers the midnight seed's 9 options through the seeded repositories", () => {
     expect(seededPairsWith({ SEED_SLOTS: "midnight" })).toEqual([
       [
         ["2024-08-20T03:00:00.000Z", "2024-08-20T13:00:00.000Z"],
@@ -321,6 +360,7 @@ describe("findAvailableSlots", () => {
         ["2024-08-20T13:00:00.000Z", "2024-08-28T03:30:00.000Z"],
         ["2024-08-21T02:30:00.000Z", "2024-08-27T12:00:00.000Z"],
         ["2024-08-21T02:30:00.000Z", "2024-08-28T03:30:00.000Z"],
+        ["2024-08-27T12:00:00.000Z", "2024-08-28T04:15:00.000Z"],
       ],
     ]);
   });
